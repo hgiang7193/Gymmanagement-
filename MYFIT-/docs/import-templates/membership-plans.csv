@@ -1,0 +1,3 @@
+plan_code,plan_name,price,duration_days,total_sessions,is_active
+BASIC-12,Basic 12 Sessions,1200000,30,12,true
+TRIAL-3,Three Day Trial,0,3,3,true

@@ -1,0 +1,3 @@
+external_id,user_email,branch_code,membership_plan_code,trial_plan_name,scheduled_at,status,phone_number,notes
+trial-ext-001,member.expired@example.com,HCM-Q3,TRIAL-3,3-Day Trial,2026-04-10T09:00:00Z,BOOKED,0909000001,Returning after expired plan
+trial-ext-002,member.active@example.com,HCM-Q1,TRIAL-3,3-Day Trial,2026-04-11T18:00:00Z,CANCELLED,0909000002,Requested evening slot

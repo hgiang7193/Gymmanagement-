@@ -1,0 +1,5 @@
+email,full_name,status,primary_role,home_branch_code
+admin@myfit.local,System Admin,ACTIVE,ADMIN,
+manager.q1@myfit.local,Manager Q1,ACTIVE,MANAGER,HCM-Q1
+member.active@example.com,Member Active,ACTIVE,MEMBER,HCM-Q1
+member.expired@example.com,Member Expired,ACTIVE,MEMBER,HCM-Q3

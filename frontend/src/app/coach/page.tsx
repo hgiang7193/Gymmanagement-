@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ProtectedPage } from "@/components/auth/protected-page";
 import { SurfaceCard } from "@/components/ui/surface-card";
+import { CoachProxyCheckInPanel } from "@/components/features/coach-proxy-checkin-panel";
 
 export default function CoachDashboardPage() {
   return (
@@ -54,6 +55,8 @@ export default function CoachDashboardPage() {
             </div>
           </SurfaceCard>
         </div>
+
+        <CoachProxyCheckInPanel />
 
         {/* Quick info */}
         <SurfaceCard

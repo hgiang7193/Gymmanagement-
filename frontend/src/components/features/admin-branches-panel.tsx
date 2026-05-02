@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,6 +13,9 @@ type Branch = {
   address: string;
   phoneNumber: string | null;
   status: string;
+  zaloLink?: string | null;
+  zaloPhone?: string | null;
+  contactEmail?: string | null;
 };
 
 type UserRow = {
@@ -28,6 +31,16 @@ type CreateBranchInput = {
   phoneNumber: string;
 };
 
+type EditBranchInput = {
+  branchId: string;
+  name: string;
+  address: string;
+  phoneNumber: string;
+  zaloLink: string;
+  zaloPhone: string;
+  contactEmail: string;
+};
+
 const initialForm: CreateBranchInput = {
   code: "",
   name: "",
@@ -40,6 +53,7 @@ export function AdminBranchesPanel() {
   const { authorizedRequest } = useAuth();
   const [form, setForm] = useState<CreateBranchInput>(initialForm);
   const [assignment, setAssignment] = useState({ branchId: "", managerUserId: "" });
+  const [editing, setEditing] = useState<EditBranchInput | null>(null);
 
   const branchesQuery = useQuery({
     queryKey: ["admin-branches"],
@@ -107,6 +121,60 @@ export function AdminBranchesPanel() {
     },
   });
 
+  const updateBranchMutation = useMutation({
+    mutationFn: async (payload: EditBranchInput) => {
+      const { branchId, ...rest } = payload;
+      const body: Record<string, string | null> = {
+        name: rest.name,
+        address: rest.address,
+        phoneNumber: rest.phoneNumber || null,
+        zaloLink: rest.zaloLink || null,
+        zaloPhone: rest.zaloPhone || null,
+        contactEmail: rest.contactEmail || null,
+      };
+      const response = await authorizedRequest<Branch>(`/api/v1/admin/branches/${branchId}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      toast.success("Cap nhat chi nhanh thanh cong");
+      setEditing(null);
+      void queryClient.invalidateQueries({ queryKey: ["admin-branches"] });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Cap nhat that bai");
+    },
+  });
+
+  const closeBranchMutation = useMutation({
+    mutationFn: async (payload: { branchId: string; force: boolean; reason?: string }) => {
+      const response = await authorizedRequest<{ branchId: string; status: string }>(
+        `/api/v1/admin/branches/${payload.branchId}/close`,
+        { method: "POST", body: JSON.stringify({ force: payload.force, reason: payload.reason }) },
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      toast.success("Da dong chi nhanh");
+      void queryClient.invalidateQueries({ queryKey: ["admin-branches"] });
+    },
+    onError: (error, variables) => {
+      const message = error instanceof Error ? error.message : "Dong chi nhanh that bai";
+      if (message === "BRANCH_HAS_ACTIVE_MEMBERS") {
+        const ok = window.confirm(
+          "Chi nhanh con member dang active. Van dong (force)? Member can duoc chuyen branch sau.",
+        );
+        if (ok) {
+          closeBranchMutation.mutate({ ...variables, force: true });
+        }
+        return;
+      }
+      toast.error(message);
+    },
+  });
+
   function onCreateBranch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     createBranchMutation.mutate(form);
@@ -115,6 +183,23 @@ export function AdminBranchesPanel() {
   function onAssignManager(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     assignManagerMutation.mutate(assignment);
+  }
+
+  function onSubmitEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (editing) updateBranchMutation.mutate(editing);
+  }
+
+  function startEdit(branch: Branch) {
+    setEditing({
+      branchId: branch.id,
+      name: branch.name,
+      address: branch.address,
+      phoneNumber: branch.phoneNumber ?? "",
+      zaloLink: branch.zaloLink ?? "",
+      zaloPhone: branch.zaloPhone ?? "",
+      contactEmail: branch.contactEmail ?? "",
+    });
   }
 
   return (
@@ -151,6 +236,25 @@ export function AdminBranchesPanel() {
             </button>
           </form>
         </SurfaceCard>
+
+        {editing ? (
+          <SurfaceCard title="Sua chi nhanh" description="Cap nhat thong tin va lien he Zalo cho khach.">
+            <form className="space-y-3" onSubmit={onSubmitEdit}>
+              <input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} className="w-full rounded-2xl border border-slate-300 px-4 py-3" placeholder="Ten chi nhanh" />
+              <input value={editing.address} onChange={(e) => setEditing({ ...editing, address: e.target.value })} className="w-full rounded-2xl border border-slate-300 px-4 py-3" placeholder="Dia chi" />
+              <input value={editing.phoneNumber} onChange={(e) => setEditing({ ...editing, phoneNumber: e.target.value })} className="w-full rounded-2xl border border-slate-300 px-4 py-3" placeholder="So dien thoai" />
+              <input value={editing.zaloLink} onChange={(e) => setEditing({ ...editing, zaloLink: e.target.value })} className="w-full rounded-2xl border border-slate-300 px-4 py-3" placeholder="Zalo link (https://zalo.me/...)" />
+              <input value={editing.zaloPhone} onChange={(e) => setEditing({ ...editing, zaloPhone: e.target.value })} className="w-full rounded-2xl border border-slate-300 px-4 py-3" placeholder="Zalo phone" />
+              <input value={editing.contactEmail} onChange={(e) => setEditing({ ...editing, contactEmail: e.target.value })} className="w-full rounded-2xl border border-slate-300 px-4 py-3" placeholder="Email lien he" />
+              <div className="flex gap-2">
+                <button type="submit" disabled={updateBranchMutation.isPending} className="rounded-2xl bg-emerald-600 px-4 py-3 font-semibold text-white disabled:bg-emerald-300">
+                  {updateBranchMutation.isPending ? "Dang luu..." : "Luu thay doi"}
+                </button>
+                <button type="button" onClick={() => setEditing(null)} className="rounded-2xl border border-slate-300 px-4 py-3 font-semibold text-slate-700">Huy</button>
+              </div>
+            </form>
+          </SurfaceCard>
+        ) : null}
       </div>
 
       <SurfaceCard title="Branches" description="Danh sach chi nhanh hien dang lay tu backend that.">
@@ -158,21 +262,47 @@ export function AdminBranchesPanel() {
         {branchesQuery.isError ? <p className="text-sm text-rose-600">Khong tai duoc branches.</p> : null}
         {!branchesQuery.isLoading && !branchesQuery.isError ? (
           <div className="space-y-3">
-            {(branchesQuery.data ?? []).map((branch) => (
-              <div key={branch.id} className="rounded-2xl border border-slate-200 px-4 py-4 text-sm text-slate-700">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="font-semibold text-slate-950">{branch.name}</div>
-                    <div className="text-slate-500">{branch.code}</div>
+            {(branchesQuery.data ?? []).map((branch) => {
+              const isClosed = branch.status === "CLOSED";
+              return (
+                <div key={branch.id} className="rounded-2xl border border-slate-200 px-4 py-4 text-sm text-slate-700">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="font-semibold text-slate-950">{branch.name}</div>
+                      <div className="text-slate-500">{branch.code}</div>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${isClosed ? "bg-slate-200 text-slate-600" : "bg-emerald-50 text-emerald-700"}`}>
+                      {branch.status}
+                    </span>
                   </div>
-                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{branch.status}</span>
+                  <div className="mt-3 space-y-1">
+                    <div>{branch.address}</div>
+                    <div className="text-slate-500">{branch.phoneNumber || "Chua co phone number"}</div>
+                    {branch.zaloLink ? <div className="text-slate-500">Zalo: {branch.zaloLink}</div> : null}
+                    {branch.contactEmail ? <div className="text-slate-500">Email: {branch.contactEmail}</div> : null}
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <button type="button" onClick={() => startEdit(branch)} className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                      Sua
+                    </button>
+                    {!isClosed ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`Dong chi nhanh "${branch.name}"?`)) {
+                            closeBranchMutation.mutate({ branchId: branch.id, force: false });
+                          }
+                        }}
+                        disabled={closeBranchMutation.isPending}
+                        className="rounded-full border border-rose-300 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                      >
+                        Dong chi nhanh
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="mt-3 space-y-1">
-                  <div>{branch.address}</div>
-                  <div className="text-slate-500">{branch.phoneNumber || "Chua co phone number"}</div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : null}
       </SurfaceCard>

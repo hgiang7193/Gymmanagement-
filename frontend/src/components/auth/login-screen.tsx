@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import { AppShell, EndpointPreview, ScreenIntro } from "@/components/layout/app-shell";
 import { SurfaceCard } from "@/components/ui/surface-card";
@@ -11,6 +12,7 @@ import type { UserRole } from "@/lib/api/types";
 const roleHome: Record<UserRole, string> = {
   ADMIN: "/admin/branches",
   MANAGER: "/manager/branches",
+  COACH: "/coach",
   MEMBER: "/member/subscription",
   GUEST: "/",
 };
@@ -80,8 +82,16 @@ export function LoginScreen() {
               type="submit"
               className="w-full rounded-2xl bg-slate-950 px-4 py-3 font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
             >
-              {isSubmitting ? "Dang dang nhap..." : session ? "Dang nhap lai" : "Dang nhap"}
+              {isSubmitting ? "Đang đăng nhập..." : session ? "Đăng nhập lại" : "Đăng nhập"}
             </button>
+            <div className="flex justify-between text-sm text-slate-600">
+              <Link href="/forgot-password" className="font-medium text-amber-600 hover:underline">
+                Quên mật khẩu?
+              </Link>
+              <Link href="/register" className="font-medium text-amber-600 hover:underline">
+                Tạo tài khoản
+              </Link>
+            </div>
           </form>
         </SurfaceCard>
 

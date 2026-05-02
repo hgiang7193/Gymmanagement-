@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/components/providers/auth-provider";
 import { SurfaceCard } from "@/components/ui/surface-card";
+import { ApiRequestError } from "@/lib/api/client";
+import type { ApiError } from "@/lib/api/types";
 
 type Shift = {
   shiftId: string;
@@ -22,6 +24,11 @@ type ShiftsResponse = {
   date: string;
   timezone: string;
   shifts: Shift[];
+};
+
+type ApiErrorResponse = {
+  error?: Partial<ApiError> | null;
+  message?: string;
 };
 
 const SHIFT_LABELS: Record<string, string> = {
@@ -58,6 +65,31 @@ function getTodayDateString() {
   return `${year}-${month}-${day}`;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isApiErrorResponse(value: unknown): value is ApiErrorResponse {
+  if (!isRecord(value)) return false;
+  return value.error === undefined || value.error === null || isRecord(value.error);
+}
+
+function getErrorCode(error: unknown) {
+  if (error instanceof ApiRequestError) {
+    return error.code ?? error.message;
+  }
+
+  if (isApiErrorResponse(error) && typeof error.error?.code === "string") {
+    return error.error.code;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "UNKNOWN_ERROR";
+}
+
 export function CoachShiftsPanel() {
   const { authorizedRequest, session } = useAuth();
   const queryClient = useQueryClient();
@@ -91,10 +123,10 @@ export function CoachShiftsPanel() {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["coach-shifts"] });
+      void queryClient.invalidateQueries({ queryKey: ["coach-shifts"] });
     },
-    onError: (error: any) => {
-      const errorCode = error.error?.code || error.message;
+    onError: (error: unknown) => {
+      const errorCode = getErrorCode(error);
       if (errorCode === "SHIFT_COACH_CAPACITY_REACHED") {
         alert("Ca nay da du 3 HLV, khong the dang ky them!");
       } else if (errorCode === "SHIFT_ALREADY_STARTED") {
@@ -119,10 +151,10 @@ export function CoachShiftsPanel() {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["coach-shifts"] });
+      void queryClient.invalidateQueries({ queryKey: ["coach-shifts"] });
     },
-    onError: (error: any) => {
-      const errorCode = error.error?.code || error.message;
+    onError: (error: unknown) => {
+      const errorCode = getErrorCode(error);
       if (errorCode === "SHIFT_REQUIRES_AT_LEAST_ONE_COACH") {
         alert("Khong the huy vi ca nay can it nhat 1 HLV!");
       } else if (errorCode === "SHIFT_ALREADY_STARTED") {

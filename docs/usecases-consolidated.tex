@@ -1,0 +1,644 @@
+\chapter{Đặc tả hệ thống}
+
+\section{Sơ đồ usecase}
+\subsection{Sơ đồ tổng quát}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.85\linewidth]{UCtq.png}
+    \caption{Sơ đồ Usecase tổng quát}
+\end{figure}
+
+\section{Nguyên tắc gộp use case}
+
+Bản đặc tả này được hợp nhất từ phiên bản 1.0 (~40 UC) thành \textbf{18 UC} dựa trên 7 nguyên tắc sau, nhằm tránh chia nhỏ vô nghĩa và phản ánh đúng định nghĩa kinh điển về use case:
+
+\begin{enumerate}
+    \item \textbf{UC = mục tiêu nghiệp vụ tạo giá trị quan sát được}, không phải mỗi màn hình view.
+    \item \textbf{CRUD trên cùng 1 domain object} → gộp 1 UC ``Quản lý X''.
+    \item \textbf{Cùng luồng nghiệp vụ chỉ khác tham số} (đánh giá ca/HLV/thiết bị/bài tập) → 1 UC với \texttt{target\_type}.
+    \item \textbf{Tương tác kết thúc ngoài hệ thống} (redirect Zalo) không phải UC.
+    \item \textbf{Cơ chế kỹ thuật ẩn} (refresh token, kích hoạt tự động sau payment) gộp vào UC mà nó phục vụ, không tách riêng.
+    \item \textbf{Các view tra cứu của cùng 1 actor} → ``Theo dõi hồ sơ cá nhân'' / ``Báo cáo vận hành''.
+    \item \textbf{Admin kế thừa toàn bộ quyền Manager} → KHÔNG lặp lại các UC Manager. Admin chỉ liệt kê những UC riêng có (quản lý chi nhánh, quản lý người dùng \& phân quyền).
+\end{enumerate}
+
+\section{Ghi chú chung}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|c|l|}
+\hline
+\textbf{Ký hiệu} & \textbf{Ý nghĩa} \\ \hline
+\textbf{[ĐK]} & Điều kiện tiên quyết \\ \hline
+\textbf{[KT]} & Điều kiện kết thúc (thành công) \\ \hline
+\textbf{[NL]} & Ngoại lệ \\ \hline
+\end{tabular}
+\caption{Ký hiệu sử dụng trong đặc tả}
+\end{table}
+
+\subsection*{Danh sách actor}
+\begin{itemize}
+    \item \textbf{Guest} — Khách tiềm năng, có tài khoản, chưa mua gói.
+    \item \textbf{Member} — Học viên có gói/khoá học active.
+    \item \textbf{Coach} — Huấn luyện viên đã đăng ký ca làm việc.
+    \item \textbf{Manager} — Quản lý chi nhánh.
+    \item \textbf{Admin} — Quản trị toàn hệ thống (kế thừa toàn bộ quyền Manager trên mọi chi nhánh).
+\end{itemize}
+
+\subsection*{Tổng quan 18 use case}
+
+\begin{table}[h]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|c|c|p{10cm}|}
+\hline
+\textbf{Nhóm} & \textbf{Số UC} & \textbf{Danh sách} \\ \hline
+Xác thực & 3 & UC-AUTH-01 Đăng ký · UC-AUTH-02 Đăng nhập/Đăng xuất · UC-AUTH-03 Khôi phục mật khẩu \\ \hline
+Khách hàng & 2 & UC-GUEST-01 Tìm hiểu gói · UC-GUEST-02 Đăng ký + theo dõi trial \\ \hline
+Thành viên & 4 & UC-MEMBER-01 Check-in + sinh trắc · UC-MEMBER-02 Hồ sơ cá nhân · UC-MEMBER-03 Hồ sơ sức khoẻ · UC-MEMBER-04 Đánh giá dịch vụ \\ \hline
+Huấn luyện viên & 2 & UC-COACH-01 Quản lý ca làm việc · UC-COACH-02 Hỗ trợ check-in lỗi \\ \hline
+Quản lý chi nhánh & 7 & UC-MGR-01 POS · UC-MGR-02 Hủy/hoàn tiền · UC-MGR-03 Catalog gói/KM · UC-MGR-04 Override check-in · UC-MGR-05 Quản lý thiết bị · UC-MGR-06 Kiểm duyệt review · UC-MGR-07 Báo cáo vận hành \\ \hline
+Quản trị viên & 2 & UC-ADMIN-01 Quản lý chi nhánh · UC-ADMIN-02 Quản lý người dùng \& phân quyền \\ \hline
+\multicolumn{2}{|r|}{\textbf{Tổng}} & \textbf{18 use case} \\ \hline
+\end{tabular}
+\caption{Tổng quan 18 use case sau khi gộp}
+\end{table}
+
+\newpage
+\section{Đặc tả chi tiết các use case}
+
+\subsection{Xác thực}
+
+%% UC-AUTH-01
+\subsubsection{UC-AUTH-01: Đăng ký tài khoản}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & Tạo tài khoản Guest để dùng các tính năng cần xác thực (đặt trial, mua gói, theo dõi hồ sơ). \\
+\hline
+\textbf{Tác nhân} & Khách vãng lai. \\
+\hline
+\textbf{[ĐK]} & Email chưa tồn tại trong hệ thống. \\
+\hline
+\textbf{[KT]} & Tài khoản Guest được tạo, email xác minh được gửi, audit \texttt{user\_registered} được ghi. \\
+\hline
+\textbf{Luồng chính} & \textbf{1.} Khách nhập email, mật khẩu, họ tên, số điện thoại. \textbf{2.} Hệ thống validate định dạng và policy mật khẩu. \textbf{3.} Hash mật khẩu (Argon2id), tạo \texttt{User} + \texttt{Profile} + role \texttt{GUEST}. \textbf{4.} Gửi email xác minh, ghi audit event. \\
+\hline
+\textbf{[NL]} & \textbf{NL-1:} Email đã tồn tại $\rightarrow$ trả lỗi chung không tiết lộ. \textbf{NL-2:} Mật khẩu yếu $\rightarrow$ trả lỗi chi tiết policy. \textbf{NL-3:} Email server lỗi $\rightarrow$ vẫn tạo tài khoản, hiển thị thông báo ``gửi lại email''. \\
+\hline
+\end{longtable}
+\endgroup
+
+%% UC-AUTH-02
+\subsubsection{UC-AUTH-02: Đăng nhập / Đăng xuất}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & Bắt đầu và kết thúc phiên xác thực. Refresh token được rotate ngầm trong suốt phiên (cơ chế kỹ thuật, không phải UC riêng). \\
+\hline
+\textbf{Tác nhân} & Guest, Member, Coach, Manager, Admin. \\
+\hline
+\textbf{[ĐK]} & Tài khoản tồn tại và đang \texttt{ACTIVE} (đối với đăng nhập). \\
+\hline
+\textbf{[KT]} & \textbf{Đăng nhập:} access token (15') + refresh token được cấp, audit \texttt{login\_success}, điều hướng theo role. \textbf{Đăng xuất:} refresh session bị revoke, token client bị xoá. \\
+\hline
+\textbf{Luồng chính} & \textbf{Đăng nhập:} 1) Nhập email + mật khẩu. 2) Verify hash. 3) Cấp token, ghi audit. 4) Trong phiên, frontend tự rotate refresh token khi access token gần hết hạn. \textbf{Đăng xuất:} 1) Người dùng nhấn đăng xuất. 2) Hệ thống revoke session, ghi audit. 3) Frontend xoá token và redirect \texttt{/login}. \\
+\hline
+\textbf{[NL]} & \textbf{NL-1:} Sai mật khẩu $\rightarrow$ ghi \texttt{login\_failed}, trả lỗi chung. \textbf{NL-2:} Tài khoản bị khoá $\rightarrow$ \texttt{USER\_INACTIVE}. \textbf{NL-3:} Vượt rate limit $\rightarrow$ HTTP 429. \textbf{NL-4:} Refresh token bị replay $\rightarrow$ revoke toàn bộ phiên, force login lại. \\
+\hline
+\end{longtable}
+\endgroup
+
+%% UC-AUTH-03
+\subsubsection{UC-AUTH-03: Khôi phục mật khẩu}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & Lấy lại quyền truy cập khi quên mật khẩu, đồng thời revoke toàn bộ phiên đang mở để chống chiếm dụng. \\
+\hline
+\textbf{Tác nhân} & Bất kỳ actor có tài khoản. \\
+\hline
+\textbf{[ĐK]} & Email tồn tại (response không tiết lộ điều này để tránh user-enumeration). \\
+\hline
+\textbf{[KT]} & Mật khẩu được đổi, toàn bộ refresh session bị revoke, audit \texttt{password\_reset\_completed}. \\
+\hline
+\textbf{Luồng chính} & \textbf{1.} Người dùng nhập email. \textbf{2.} Hệ thống tạo reset token một lần (TTL 24h) và gửi email. \textbf{3.} Người dùng click link, nhập mật khẩu mới. \textbf{4.} Validate token, cập nhật hash, revoke toàn bộ phiên. \\
+\hline
+\textbf{[NL]} & \textbf{NL-1:} Token hết hạn / đã dùng $\rightarrow$ yêu cầu gửi lại. \textbf{NL-2:} Mật khẩu mới không đạt policy $\rightarrow$ trả lỗi chi tiết. \\
+\hline
+\end{longtable}
+\endgroup
+
+\subsection{Khách hàng (Guest)}
+
+%% UC-GUEST-01
+\subsubsection{UC-GUEST-01: Tìm hiểu gói dịch vụ}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & Cho phép khách duyệt catalog, so sánh và xem chi tiết các gói tập để ra quyết định. (Gộp \emph{xem danh sách} + \emph{xem chi tiết 1 gói} — cùng 1 mục tiêu nghiệp vụ với 2 mức zoom.) \\
+\hline
+\textbf{Tác nhân} & Guest (không cần đăng nhập). \\
+\hline
+\textbf{[ĐK]} & Hệ thống có tối thiểu 1 gói \texttt{ACTIVE}. \\
+\hline
+\textbf{[KT]} & Khách thấy được catalog hoặc chi tiết 1 gói, có CTA ``Đặt lịch tập thử'' hoặc ``Liên hệ tư vấn qua Zalo'' (Zalo là redirect ngoài, không thuộc phạm vi UC). \\
+\hline
+\textbf{Luồng chính} & \textbf{1.} Khách mở trang gói dịch vụ. \textbf{2.} Hệ thống trả danh sách gói \texttt{ACTIVE}, có lọc theo loại / chi nhánh. \textbf{3.} Khách click 1 gói $\rightarrow$ hiển thị mô tả, điều khoản, chi nhánh áp dụng, FAQ. \\
+\hline
+\textbf{[NL]} & Không có gói \texttt{ACTIVE} $\rightarrow$ hiển thị trạng thái rỗng kèm CTA liên hệ tư vấn. \\
+\hline
+\end{longtable}
+\endgroup
+
+%% UC-GUEST-02
+\subsubsection{UC-GUEST-02: Đăng ký và theo dõi lịch tập thử}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & Cho Guest trải nghiệm dịch vụ qua 1 buổi tập thử và tự kiểm tra trạng thái booking. (Gộp \emph{đặt trial} + \emph{theo dõi trial} — vòng đời 1 booking duy nhất.) \\
+\hline
+\textbf{Tác nhân} & Guest đã đăng nhập. \\
+\hline
+\textbf{[ĐK]} & Guest chưa có trial booking đang \texttt{registered}/\texttt{confirmed}; chi nhánh có slot trống. \\
+\hline
+\textbf{[KT]} & Trial booking trạng thái \texttt{registered} được tạo, email xác nhận được gửi, funnel data được ghi; Guest có thể xem trạng thái sau đó. \\
+\hline
+\textbf{Luồng chính} & \textbf{1.} Guest chọn chi nhánh + ngày + khung giờ còn slot. \textbf{2.} Hệ thống tạo \texttt{trial\_booking} \texttt{registered}, ghi funnel, gửi email. \textbf{3.} Sau khi đặt, Guest mở ``Trial của tôi'' để xem trạng thái (\texttt{registered $\rightarrow$ confirmed $\rightarrow$ attended/no\_show $\rightarrow$ converted}). \\
+\hline
+\textbf{[NL]} & \textbf{NL-1:} Chọn ngày quá khứ $\rightarrow$ block UI + backend reject. \textbf{NL-2:} Slot hết $\rightarrow$ gợi ý khung khác. \textbf{NL-3:} Đã có trial active $\rightarrow$ điều hướng đến trang theo dõi thay vì cho đặt mới. \\
+\hline
+\end{longtable}
+\endgroup
+
+\subsection{Thành viên (Member)}
+
+%% UC-MEMBER-01
+\subsubsection{UC-MEMBER-01: Check-in ca tập kèm sinh trắc}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & Ghi nhận member có mặt trong ca và lưu cân nặng sinh trắc trong cùng 1 transaction atomic. (Gộp \emph{xem ca khả dụng} + \emph{check-in} + \emph{yêu cầu hỗ trợ khi lỗi} — cùng 1 mục tiêu ``tham gia 1 buổi tập''.) \\
+\hline
+\textbf{Tác nhân} & Member. \\
+\hline
+\textbf{[ĐK]} & Member có subscription/enrollment \texttt{ACTIVE} với \texttt{sessions\_remaining > 0}; ca trong cửa sổ hợp lệ \texttt{[start - 30', end]}; chưa check-in ca này. \\
+\hline
+\textbf{[KT]} & \texttt{class\_attendance} + \texttt{member\_weight\_logs} được tạo trong 1 transaction; trigger DB trừ \texttt{sessions\_remaining}; audit event được ghi. \\
+\hline
+\textbf{Luồng chính} & \textbf{1.} Member mở ``Check-in'' $\rightarrow$ hệ thống lọc các ca trong cửa sổ hợp lệ và chưa check-in. \textbf{2.} Member chọn ca, nhập cân nặng (kg). \textbf{3.} Hệ thống validate: ca hợp lệ, không trùng giờ với ca đã check-in, sessions còn. \textbf{4.} Transaction: lưu sinh trắc + tạo attendance + decrement sessions + audit. \\
+\hline
+\textbf{[NL]} & \textbf{NL-1:} Ca đóng cửa sổ $\rightarrow$ \texttt{SHIFT\_CHECKIN\_CLOSED}. \textbf{NL-2:} Trùng check-in $\rightarrow$ \texttt{DUPLICATE\_CHECKIN}. \textbf{NL-3:} Hết session $\rightarrow$ gợi ý gia hạn. \textbf{NL-4:} Cân hỏng $\rightarrow$ fallback nhập tay. \textbf{NL-5:} Member không tự thao tác được $\rightarrow$ nhấn ``Cần hỗ trợ'' $\rightarrow$ Manager xử lý qua UC-MGR-04. \\
+\hline
+\end{longtable}
+\endgroup
+
+%% UC-MEMBER-02
+\subsubsection{UC-MEMBER-02: Theo dõi hồ sơ cá nhân}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & Member tự kiểm tra toàn bộ dữ liệu của mình trong hệ thống: lịch sử tập, gói/quota, hoá đơn, tiến trình sức khoẻ. (Gộp 4 view UC riêng lẻ trong bản cũ — cùng mục tiêu ``tự đối soát dữ liệu cá nhân''.) \\
+\hline
+\textbf{Tác nhân} & Member. \\
+\hline
+\textbf{[ĐK]} & Member đã đăng nhập. \\
+\hline
+\textbf{[KT]} & Hồ sơ cá nhân được hiển thị theo các tab. \\
+\hline
+\textbf{Luồng chính} & \textbf{1.} Member vào ``Hồ sơ của tôi''. \textbf{2.} Chọn tab: \emph{(a)} Lịch sử check-in (ngày, ca, chi nhánh, sinh trắc); \emph{(b)} Gói đang dùng (loại, hạn, số buổi còn); \emph{(c)} Hoá đơn \& thanh toán (chi tiết line items, payments); \emph{(d)} Tiến trình sức khoẻ (biểu đồ cân nặng theo thời gian). \textbf{3.} Mỗi tab có CTA tương ứng (gia hạn, tải hoá đơn, đặt mục tiêu). \\
+\hline
+\textbf{[NL]} & Tab nào không có dữ liệu $\rightarrow$ hiển thị trạng thái rỗng + CTA phù hợp. \\
+\hline
+\end{longtable}
+\endgroup
+
+%% UC-MEMBER-03
+\subsubsection{UC-MEMBER-03: Cập nhật hồ sơ sức khoẻ}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & Lưu thông tin sức khoẻ nền (chiều cao, mục tiêu, dị ứng, bệnh nền) làm input cho tư vấn và cảnh báo sinh trắc. \\
+\hline
+\textbf{Tác nhân} & Member. \\
+\hline
+\textbf{[ĐK]} & Member đã đăng nhập. \\
+\hline
+\textbf{[KT]} & Hồ sơ sức khoẻ được lưu, audit \texttt{health\_profile\_updated}. \\
+\hline
+\textbf{Luồng chính} & \textbf{1.} Member vào ``Hồ sơ sức khoẻ''. \textbf{2.} Nhập/cập nhật các trường. \textbf{3.} Lưu. \\
+\hline
+\textbf{[NL]} & Dữ liệu không hợp lệ (chiều cao âm, cân mục tiêu phi lý) $\rightarrow$ validate trả lỗi cụ thể. \\
+\hline
+\end{longtable}
+\endgroup
+
+%% UC-MEMBER-04
+\subsubsection{UC-MEMBER-04: Đánh giá dịch vụ}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & Thu thập phản hồi của member về 1 đối tượng dịch vụ (ca tập, HLV, thiết bị, bài tập). \emph{Gộp 4 UC review-* của bản cũ thành 1} — cùng entity \texttt{reviews}, cùng luồng tạo, chỉ khác \texttt{target\_type} và rate-limit policy. \\
+\hline
+\textbf{Tác nhân} & Member. \\
+\hline
+\textbf{[ĐK]} & Member đã có tương tác hợp lệ với target (đã check-in ca / đã tập với HLV / đã ở chi nhánh chứa thiết bị / đã thực hiện bài tập). \\
+\hline
+\textbf{[KT]} & Bản ghi \texttt{reviews} với \texttt{status = visible} được tạo. \\
+\hline
+\textbf{Luồng chính} & \textbf{1.} Member chọn loại đánh giá (ca/HLV/thiết bị/bài tập). \textbf{2.} Chọn target từ danh sách lịch sử tương tác. \textbf{3.} Chọn rating 1--5 + comment + tags (optional). \textbf{4.} Hệ thống enforce rate limit theo \texttt{target\_type}: ca = 1 review/shift; HLV = 1 review/coach/ngày; thiết bị = 1 review/asset/tuần; bài tập = không giới hạn. \textbf{5.} Lưu review. \\
+\hline
+\textbf{[NL]} & \textbf{NL-1:} Vượt rate limit $\rightarrow$ \texttt{REVIEW\_RATE\_LIMITED}. \textbf{NL-2:} Không đủ điều kiện tương tác $\rightarrow$ \texttt{REVIEW\_NOT\_ALLOWED}. \textbf{NL-3:} Nội dung vi phạm $\rightarrow$ auto-flag vào hàng đợi kiểm duyệt (UC-MGR-06). \\
+\hline
+\end{longtable}
+\endgroup
+
+\subsection{Huấn luyện viên (Coach)}
+
+%% UC-COACH-01
+\subsubsection{UC-COACH-01: Quản lý ca làm việc của HLV}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & HLV tự đăng ký các ca trống tại branch của mình và chạy các ca đã đăng ký (xem lịch, xem roster, xem thông tin học viên). \emph{Gộp toàn bộ vòng đời ca từ phía HLV} — đăng ký + chạy ca. Manager KHÔNG phân ca cho HLV trong mô hình này; HLV chủ động chọn lịch làm việc. \\
+\hline
+\textbf{Tác nhân} & Coach. \\
+\hline
+\textbf{[ĐK]} & Coach đã đăng nhập, thuộc branch có ca, ca chưa đủ HLV (cho luồng đăng ký). \\
+\hline
+\textbf{[KT]} & \emph{Đăng ký:} bản ghi \texttt{trainer\_assignments} được tạo, audit \texttt{coach\_self\_assigned}. \emph{Chạy ca:} HLV thấy được lịch, roster real-time và thông tin tối thiểu của từng học viên (least privilege). \\
+\hline
+\textbf{Luồng chính} & \textbf{(a) Đăng ký ca:} 1) HLV mở ``Ca trống'' $\rightarrow$ thấy các ca chưa đủ HLV trong branch và khoảng thời gian. 2) Chọn ca, xác nhận. 3) Hệ thống validate (không trùng giờ với ca đã nhận, còn slot HLV) $\rightarrow$ tạo assignment. 4) HLV có thể tự huỷ assignment trước khi ca bắt đầu. \textbf{(b) Chạy ca:} 1) HLV mở màn hình chính $\rightarrow$ hệ thống lấy ca theo ngày từ \texttt{trainer\_assignments}. 2) Chọn ca $\rightarrow$ hiển thị roster real-time (\texttt{class\_attendance}): tổng check-in, tên, giờ check-in, sinh trắc. 3) Click học viên $\rightarrow$ hiển thị tên, ảnh, cân nặng hôm nay, số buổi còn lại. \\
+\hline
+\textbf{[NL]} & \textbf{NL-1:} Đăng ký ca trùng giờ $\rightarrow$ \texttt{SHIFT\_TIME\_OVERLAP}. \textbf{NL-2:} Ca đã đủ HLV $\rightarrow$ \texttt{SHIFT\_FULL}. \textbf{NL-3:} Huỷ ca sau khi đã bắt đầu $\rightarrow$ \texttt{SHIFT\_ALREADY\_STARTED}. \textbf{NL-4:} Truy cập ca không cùng branch $\rightarrow$ \texttt{FORBIDDEN}. \\
+\hline
+\end{longtable}
+\endgroup
+
+%% UC-COACH-02
+\subsubsection{UC-COACH-02: Hỗ trợ học viên check-in lỗi}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & Khi học viên có mặt nhưng không thể tự check-in, HLV xử lý tại chỗ thay vì chờ Manager. \\
+\hline
+\textbf{Tác nhân} & Coach. \\
+\hline
+\textbf{[ĐK]} & Coach đang được phân công ca; ca trong cửa sổ hợp lệ \texttt{[start - 30', end]} (không có grace period sau \texttt{end} — đó là quyền Manager); học viên có subscription/enrollment ACTIVE và sessions còn. \\
+\hline
+\textbf{[KT]} & Hoặc học viên check-in lại thành công, hoặc HLV thực hiện proxy check-in: tạo \texttt{class\_attendance} với \texttt{proxy\_checkin = true}, \texttt{override\_actor = coach}, \texttt{override\_reason} bắt buộc; audit \texttt{attendance\_proxy\_coach}. \\
+\hline
+\textbf{Luồng chính} & \textbf{1.} Học viên báo lỗi với HLV. \textbf{2.} HLV hướng dẫn thử lại. \textbf{3.} Nếu vẫn lỗi: HLV xác minh danh tính, nhập lý do bắt buộc, xác nhận proxy check-in. \textbf{4.} Hệ thống chạy transaction tạo attendance + audit. \textbf{5.} Nếu sự cố vượt thẩm quyền (ngoài cửa sổ ca, học viên không có gói active), HLV chuyển ca sang Manager (UC-MGR-04). \\
+\hline
+\textbf{[NL]} & \textbf{NL-1:} Coach không thuộc assignment của ca $\rightarrow$ \texttt{COACH\_NOT\_ASSIGNED\_TO\_SHIFT}. \textbf{NL-2:} Ngoài cửa sổ ca $\rightarrow$ \texttt{SHIFT\_NOT\_STARTED}/\texttt{SHIFT\_ALREADY\_ENDED}. \textbf{NL-3:} Trùng check-in $\rightarrow$ \texttt{DUPLICATE\_CHECKIN}. \textbf{NL-4:} Thiếu lý do $\rightarrow$ \texttt{OVERRIDE\_REASON\_REQUIRED}. \\
+\hline
+\end{longtable}
+\endgroup
+
+\subsection{Quản lý chi nhánh (Manager)}
+
+%% UC-MGR-01
+\subsubsection{UC-MGR-01: Bán gói tại quầy (POS)}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & Bán 1 gói cho khách hàng tại quầy: tạo hoá đơn, áp khuyến mãi, ghi nhận thanh toán, tự động kích hoạt quyền sử dụng. \emph{Gộp UC-POS-01/02/03 + UC-PROMO-03 của bản cũ} — đây là 1 business flow nguyên khối; kích hoạt subscription là hệ quả tự động chứ không phải UC riêng. \\
+\hline
+\textbf{Tác nhân} & Manager (branch scope). \\
+\hline
+\textbf{[ĐK]} & Khách đã có tài khoản; gói chọn có \texttt{status = ACTIVE}; manager thuộc branch của giao dịch. \\
+\hline
+\textbf{[KT]} & \texttt{invoice} \texttt{paid}, \texttt{payment} \texttt{success}, \texttt{subscription}/\texttt{course\_enrollment} \texttt{ACTIVE} với \texttt{sessions\_remaining}, audit \texttt{membership\_activated\_via\_payment}. Khách nhận thông báo. \\
+\hline
+\textbf{Luồng chính} & \textbf{1.} Manager chọn khách + gói (chỉ ACTIVE), snapshot giá vào line items. \textbf{2.} Áp khuyến mãi nếu có: hệ thống validate hiệu lực (\texttt{[starts\_at, ends\_at]}), điều kiện gói/tổng tiền/lượt dùng, quy tắc \texttt{stackable}. \textbf{3.} Tạo \texttt{invoice} \texttt{pending}. \textbf{4.} Manager chọn phương thức thanh toán (tiền mặt/chuyển khoản/POS card), nhập số tiền nhận. \textbf{5.} Hệ thống tích luỹ payment so với tổng invoice — đủ tiền $\rightarrow$ \texttt{paid} và tự động kích hoạt subscription/enrollment + audit; thiếu tiền $\rightarrow$ giữ \texttt{pending} (cho phép trả nhiều lần). \\
+\hline
+\textbf{[NL]} & \textbf{NL-1:} Gói INACTIVE giữa luồng $\rightarrow$ refresh catalog. \textbf{NL-2:} Khuyến mãi hết hạn / không đủ điều kiện $\rightarrow$ thông báo cụ thể. \textbf{NL-3:} Số tiền vượt invoice $\rightarrow$ \texttt{PAYMENT\_EXCEEDS\_INVOICE}. \textbf{NL-4:} Khách đã có subscription cùng loại còn active $\rightarrow$ skip kích hoạt với \texttt{ALREADY\_ACTIVE}. \textbf{NL-5:} Manager khác branch $\rightarrow$ \texttt{CROSS\_BRANCH\_ACCESS}. \\
+\hline
+\end{longtable}
+\endgroup
+
+%% UC-MGR-02
+\subsubsection{UC-MGR-02: Hủy hoá đơn / hoàn tiền}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & Đảo trạng thái 1 giao dịch theo chính sách (giao dịch sai, khách đổi ý). \\
+\hline
+\textbf{Tác nhân} & Manager (branch scope). \\
+\hline
+\textbf{[ĐK]} & Invoice tồn tại; manager thuộc branch của invoice. \\
+\hline
+\textbf{[KT]} & \emph{Hủy} (invoice \texttt{pending}): chuyển \texttt{cancelled}, audit. \emph{Hoàn tiền} (invoice \texttt{paid}): tạo refund record; nếu là full refund $\rightarrow$ deactivate subscription/enrollment tương ứng (\texttt{status = CANCELLED}, \texttt{expires\_at = now}); audit. \\
+\hline
+\textbf{Luồng chính} & \textbf{1.} Manager mở invoice. \textbf{2.} Chọn hành động: hủy (chỉ \texttt{pending}) hoặc hoàn tiền (chỉ \texttt{paid}), nhập lý do bắt buộc và số tiền hoàn (cho refund). \textbf{3.} Hệ thống thực hiện trong transaction: cập nhật trạng thái invoice/payment + scan line items để deactivate gói/khoá học tương ứng + ghi audit. \\
+\hline
+\textbf{[NL]} & \textbf{NL-1:} Invoice đã \texttt{cancelled}/\texttt{refunded} $\rightarrow$ chặn thao tác lặp. \textbf{NL-2:} Member đã sử dụng nhiều buổi $\rightarrow$ chính sách hoàn tiền theo số buổi đã dùng. \textbf{NL-3:} Manager khác branch $\rightarrow$ \texttt{CROSS\_BRANCH\_ACCESS}. \\
+\hline
+\end{longtable}
+\endgroup
+
+%% UC-MGR-03
+\subsubsection{UC-MGR-03: Quản lý catalog gói \& khuyến mãi}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & CRUD và bật/tắt gói + khuyến mãi do manager phụ trách. (Gộp UC-PROD-01/02/03 + UC-PROMO-01/02 — cùng pattern ``quản lý catalog kinh doanh''.) \\
+\hline
+\textbf{Tác nhân} & Manager (branch scope). \\
+\hline
+\textbf{[ĐK]} & Có quyền quản lý catalog của branch. \\
+\hline
+\textbf{[KT]} & Gói/KM được tạo, sửa hoặc đổi trạng thái \texttt{ACTIVE/INACTIVE}. Invoice cũ không bị ảnh hưởng (giá đã snapshot). \\
+\hline
+\textbf{Luồng chính} & \textbf{1.} Manager mở ``Quản lý gói'' hoặc ``Quản lý khuyến mãi''. \textbf{2.} Tạo mới (mặc định INACTIVE) hoặc sửa (tên/mô tả/giá/quyền lợi/loại discount/điều kiện áp dụng/thời hạn/\texttt{stackable}). \textbf{3.} Toggle ACTIVE/INACTIVE để bật/tắt khả dụng cho POS và trang khách. \\
+\hline
+\textbf{[NL]} & \textbf{NL-1:} Sửa giá khi gói ACTIVE $\rightarrow$ cảnh báo ``giá mới chỉ áp dụng cho hoá đơn mới''. \textbf{NL-2:} Thiếu trường bắt buộc $\rightarrow$ validate trả lỗi. \\
+\hline
+\end{longtable}
+\endgroup
+
+%% UC-MGR-04
+\subsubsection{UC-MGR-04: Can thiệp check-in (override)}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & Đảm bảo dữ liệu attendance chính xác khi member không thể tự check-in (sự cố app/cân, ngoài cửa sổ, hết grace period). Phân biệt với UC-COACH-02: manager có thẩm quyền rộng hơn (grace period, mọi ca trong branch). \\
+\hline
+\textbf{Tác nhân} & Manager (branch scope). \\
+\hline
+\textbf{[ĐK]} & Manager thuộc branch của ca; member có mặt thực tế; có lý do hợp lệ. \\
+\hline
+\textbf{[KT]} & \texttt{class\_attendance} được tạo với \texttt{override = true}, \texttt{override\_actor = manager}, \texttt{override\_reason}; audit \texttt{attendance\_override}. \\
+\hline
+\textbf{Luồng chính} & \textbf{1.} Manager nhận thông báo từ member (UC-MEMBER-01) hoặc HLV (UC-COACH-02). \textbf{2.} Xác minh danh tính + tình trạng có mặt. \textbf{3.} Chọn member + ca, nhập lý do bắt buộc. \textbf{4.} Hệ thống tạo attendance + audit trong transaction. \\
+\hline
+\textbf{[NL]} & \textbf{NL-1:} Member đã check-in $\rightarrow$ chặn ghi đè. \textbf{NL-2:} Ca kết thúc quá lâu $\rightarrow$ yêu cầu Admin confirm. \textbf{NL-3:} Thiếu lý do $\rightarrow$ \texttt{OVERRIDE\_REASON\_REQUIRED}. \\
+\hline
+\end{longtable}
+\endgroup
+
+%% UC-MGR-05
+\subsubsection{UC-MGR-05: Quản lý thiết bị}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & CRUD danh mục loại thiết bị tại branch và cập nhật số lượng/tình trạng. \emph{Quy mô gym nhỏ không cần phiếu sự cố hay lịch bảo trì định kỳ} — manager xử lý trực tiếp khi có vấn đề. \\
+\hline
+\textbf{Tác nhân} & Manager (branch scope). \\
+\hline
+\textbf{[ĐK]} & Manager thuộc branch. \\
+\hline
+\textbf{[KT]} & Loại thiết bị được tạo/sửa/xoá; số lượng và tình trạng được cập nhật. \\
+\hline
+\textbf{Luồng chính} & \textbf{1.} Manager mở ``Quản lý thiết bị''. \textbf{2.} \emph{Thêm loại thiết bị:} nhập tên, mô tả, số lượng ban đầu, tình trạng mặc định \texttt{ACTIVE}. \textbf{3.} \emph{Cập nhật số lượng:} sửa số lượng khi mua thêm hoặc loại bỏ. \textbf{4.} \emph{Cập nhật tình trạng:} chuyển giữa \texttt{ACTIVE / MAINTENANCE / BROKEN / RETIRED}; nếu là cân InBody bị BROKEN $\rightarrow$ check-in tự bật fallback nhập tay. \textbf{5.} \emph{Xoá:} chỉ cho phép khi số lượng = 0 hoặc tình trạng \texttt{RETIRED}. \\
+\hline
+\textbf{[NL]} & \textbf{NL-1:} Số lượng âm $\rightarrow$ \texttt{INVALID\_QUANTITY}. \textbf{NL-2:} Trạng thái không hợp lệ $\rightarrow$ \texttt{INVALID\_ASSET\_STATUS}. \textbf{NL-3:} Xoá khi còn số lượng dùng $\rightarrow$ chặn, yêu cầu chuyển sang \texttt{RETIRED} trước. \\
+\hline
+\end{longtable}
+\endgroup
+
+%% UC-MGR-06
+\subsubsection{UC-MGR-06: Kiểm duyệt đánh giá}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & Xử lý các review bị flag (auto hoặc do manager phát hiện) — ẩn nội dung vi phạm hoặc khôi phục. (Phần \emph{xem tổng hợp đánh giá theo branch} thuộc UC-MGR-07, không lặp ở đây.) \\
+\hline
+\textbf{Tác nhân} & Manager (branch scope). \\
+\hline
+\textbf{[ĐK]} & Có review thuộc branch và đang \texttt{visible} hoặc \texttt{flagged}. \\
+\hline
+\textbf{[KT]} & Trạng thái review được đổi (\texttt{visible}/\texttt{flagged}/\texttt{hidden}) kèm \texttt{review\_moderation\_logs} ghi lý do. \\
+\hline
+\textbf{Luồng chính} & \textbf{1.} Manager mở hàng đợi kiểm duyệt. \textbf{2.} Xem chi tiết review, đổi trạng thái với lý do bắt buộc. \\
+\hline
+\textbf{[NL]} & Đổi sang trạng thái không hợp lệ $\rightarrow$ \texttt{INVALID\_REVIEW\_STATUS}. \\
+\hline
+\end{longtable}
+\endgroup
+
+%% UC-MGR-07
+\subsubsection{UC-MGR-07: Theo dõi \& báo cáo vận hành}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & Cung cấp toàn bộ view tổng hợp về vận hành branch để manager ra quyết định và đối soát cuối ngày. \emph{Đây là UC duy nhất mang tính ``xem báo cáo''} — gộp dashboard ngày, roster theo ca, funnel trial, đối soát thu ngân, tổng hợp đánh giá theo branch. Các UC action khác KHÔNG lặp lại các view này. \\
+\hline
+\textbf{Tác nhân} & Manager (branch scope). \\
+\hline
+\textbf{[ĐK]} & Manager đã đăng nhập, thuộc branch. \\
+\hline
+\textbf{[KT]} & Báo cáo được hiển thị; có thể export hoặc ghi nhận đối soát ca. \\
+\hline
+\textbf{Luồng chính} & \textbf{1.} Manager mở ``Báo cáo vận hành''. \textbf{2.} Chọn loại view: \emph{(a)} Tổng quan ngày — số check-in, doanh thu POS, trial tạo mới; \emph{(b)} Roster theo ca — danh sách check-in chi tiết để xử lý khiếu nại; \emph{(c)} Funnel trial — \texttt{registered $\rightarrow$ confirmed $\rightarrow$ attended $\rightarrow$ converted} kèm tỷ lệ; \emph{(d)} Đối soát thu ngân — tổng hoá đơn, tổng thu theo phương thức, refund; \emph{(e)} Tổng hợp đánh giá — số lượng và rating trung bình theo \texttt{target\_type}, top target được review nhiều nhất. \textbf{3.} Có thể export hoặc xác nhận đối soát ca cuối ngày (audit \texttt{shift\_reconciled}). \\
+\hline
+\textbf{[NL]} & Không có dữ liệu trong khoảng chọn $\rightarrow$ trạng thái rỗng. \\
+\hline
+\end{longtable}
+\endgroup
+
+\subsection{Quản trị viên (Admin)}
+
+\begin{quote}
+\emph{Lưu ý:} Admin \textbf{kế thừa toàn bộ quyền của Manager} (UC-MGR-01 đến UC-MGR-07) trên \textbf{tất cả các chi nhánh} thay vì chỉ branch được gán. Phần dưới đây chỉ liệt kê những UC \textbf{Manager không có} — gồm phân quyền hệ thống, quản lý mọi tài khoản và quản lý chi nhánh.
+\end{quote}
+
+%% UC-ADMIN-01
+\subsubsection{UC-ADMIN-01: Quản lý chi nhánh}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & CRUD chi nhánh và cấu hình thông tin liên hệ (Zalo/hotline/email). Đây là việc Manager không làm được vì Manager chỉ có scope trong branch đã có. \\
+\hline
+\textbf{Tác nhân} & Admin. \\
+\hline
+\textbf{[ĐK]} & Admin có role hợp lệ. \\
+\hline
+\textbf{[KT]} & Branch được tạo/sửa/đóng; thông tin liên hệ cập nhật trên trang public. \\
+\hline
+\textbf{Luồng chính} & \textbf{1.} Admin mở ``Chi nhánh''. \textbf{2.} Tạo branch (tên, địa chỉ, giờ mở/đóng) hoặc sửa thông tin (\texttt{zalo\_link}, \texttt{zalo\_phone}, \texttt{contact\_email}). \textbf{3.} Đóng branch (soft) khi ngừng hoạt động. \\
+\hline
+\textbf{[NL]} & Đóng branch còn member active $\rightarrow$ cảnh báo và yêu cầu chuyển branch. \\
+\hline
+\end{longtable}
+\endgroup
+
+%% UC-ADMIN-02
+\subsubsection{UC-ADMIN-02: Quản lý người dùng \& phân quyền}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & Quản lý vòng đời và phân quyền cho \emph{mọi tài khoản} trong hệ thống — gồm tạo nhân sự nội bộ (Coach/Manager), gán/gỡ role, gán Manager phụ trách branch, vô hiệu hoá tài khoản. Đây là điểm khác biệt chính giữa Admin và Manager. \\
+\hline
+\textbf{Tác nhân} & Admin. \\
+\hline
+\textbf{[ĐK]} & Admin có role hợp lệ. \\
+\hline
+\textbf{[KT]} & \emph{Tạo nhân sự:} \texttt{user} (\texttt{PENDING\_PASSWORD\_RESET}) + \texttt{profile} + \texttt{staff\_profile} + \texttt{user\_role\_assignments} + \texttt{password\_reset\_tokens} (24h) trong 1 transaction; audit \texttt{staff\_registered}; email ``đặt mật khẩu lần đầu'' được gửi. \emph{Phân quyền:} role được gán/gỡ; với role \texttt{MANAGER}, branch được gán qua \texttt{branch\_manager\_assignments}. \emph{Vô hiệu hoá:} tài khoản chuyển \texttt{INACTIVE}, các phiên bị revoke. \\
+\hline
+\textbf{Luồng chính} & \textbf{1.} Admin mở ``Người dùng'' $\rightarrow$ thấy toàn bộ tài khoản (Member/Coach/Manager/Admin) với bộ lọc theo role/branch/trạng thái. \textbf{2.} \emph{Tạo nhân sự:} nhập email, họ tên, SĐT, vai trò, branch chính, employee code. Hệ thống chạy transaction tạo records và gửi email. \textbf{3.} \emph{Phân quyền:} chọn user $\rightarrow$ gán/gỡ role; với MANAGER thì gán branch quản lý. \textbf{4.} \emph{Vô hiệu hoá / khôi phục:} toggle trạng thái tài khoản. \\
+\hline
+\textbf{[NL]} & \textbf{NL-1:} Email đã tồn tại $\rightarrow$ \texttt{EMAIL\_ALREADY\_EXISTS}. \textbf{NL-2:} Employee code trùng $\rightarrow$ \texttt{EMPLOYEE\_CODE\_ALREADY\_EXISTS}. \textbf{NL-3:} Vai trò không hợp lệ $\rightarrow$ \texttt{INVALID\_STAFF\_ROLE}. \textbf{NL-4:} Vô hiệu hoá Admin cuối cùng $\rightarrow$ chặn để tránh khoá hệ thống. \\
+\hline
+\end{longtable}
+\endgroup

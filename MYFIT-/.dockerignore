@@ -1,0 +1,33 @@
+# Version control
+.git
+.gitignore
+
+# Local env files — NEVER bake secrets into the image
+.env
+.env.local
+.env.*.local
+
+# Dev dependencies are installed inside the image via npm ci --omit=dev
+node_modules
+
+# Test / dev artifacts
+tests
+scripts
+docs
+*.test.js
+
+# Editor / OS noise
+.vscode
+.idea
+*.md
+.DS_Store
+Thumbs.db
+
+# Docker files themselves
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# CI / agent config
+.agents
+.sixth
