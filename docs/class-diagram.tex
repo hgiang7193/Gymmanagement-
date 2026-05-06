@@ -1,0 +1,804 @@
+% ============================================================
+%  SECTION: THIẾT KẾ SƠ ĐỒ LỚP
+% ============================================================
+
+\section{Thiết kế sơ đồ lớp}
+
+% ------------------------------------------------------------
+\subsection{Kiến trúc phân tầng}
+% ------------------------------------------------------------
+
+Hệ thống MYFIT được tổ chức theo kiến trúc \textbf{4 tầng phân lớp},
+trong đó mỗi tầng chỉ phụ thuộc xuống tầng phía dưới và không bao giờ
+phụ thuộc ngược lên:
+
+\begin{table}[h]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|c|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{8cm}|}
+\hline
+\textbf{STT} & \textbf{Tầng} & \textbf{Trách nhiệm} \\ \hline
+1 & Trình bày \newline \texttt{<<controller>>} &
+    Nhận yêu cầu HTTP, xác thực đầu vào, uỷ quyền cho tầng Nghiệp vụ,
+    trả về phản hồi HTTP. Không chứa logic nghiệp vụ. \\ \hline
+2 & Nghiệp vụ \newline \texttt{<<service>>} &
+    Triển khai toàn bộ luồng nghiệp vụ từ các ca sử dụng. Mỗi
+    lớp Service tương ứng với một nhóm UC cùng miền. \\ \hline
+3 & Truy cập dữ liệu \newline \texttt{<<repository>>} &
+    Trừu tượng hoá truy vấn cơ sở dữ liệu qua giao diện.
+    Tầng Nghiệp vụ không trực tiếp viết SQL, chỉ gọi phương thức Repository. \\ \hline
+4 & Miền \newline \texttt{<<entity>>} &
+    Ánh xạ 1-1 với bảng cơ sở dữ liệu. Chứa trường dữ liệu
+    và các ràng buộc cơ bản. \\ \hline
+\end{tabular}
+\caption{Bốn tầng kiến trúc của hệ thống MYFIT}
+\end{table}
+
+\noindent Các nguyên tắc thiết kế xuyên suốt:
+
+\begin{enumerate}
+    \item \textbf{1 UC = 1 phương thức Service} — mỗi ca sử dụng ánh xạ
+          thành ít nhất 1 phương thức trong lớp Service tương ứng.
+    \item \textbf{Chốt giá tại thời điểm giao dịch} —
+          \texttt{InvoiceLineItem} lưu \texttt{price\_snapshot} thay vì
+          khoá ngoại động để tránh sai lệch khi gói bị sửa giá sau.
+    \item \textbf{Đích đánh giá đa hình} —
+          \texttt{Review.target\_type + target\_id} thay cho 4 bảng nối
+          riêng (ca tập / huấn luyện viên / thiết bị / bài tập).
+    \item \textbf{Nhật ký kiểm toán tập trung} — mọi sự kiện nghiệp vụ ghi vào
+          \texttt{AuditLog} duy nhất thông qua tầng Service; tầng Controller
+          không ghi trực tiếp.
+\end{enumerate}
+
+\newpage
+% ------------------------------------------------------------
+\subsection{Lớp thực thể (Entity Layer)}
+% ------------------------------------------------------------
+
+Lớp thực thể gồm \textbf{10 gói} và \textbf{22 lớp}, mỗi lớp ánh
+xạ 1-1 với một bảng trong cơ sở dữ liệu. Toàn bộ được trình bày qua
+3 sơ đồ theo nhóm chức năng.
+
+% ── Sơ đồ thực thể 1 ────────────────────────────────────────
+\subsubsection{Sơ đồ thực thể 1: Người dùng \& Quản lý truy cập}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.90\linewidth]{CD1.png}
+    \caption{Sơ đồ lớp thực thể — Người dùng \& Quản lý truy cập}
+\end{figure}
+
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3.2cm}|>{\ttfamily\raggedright\arraybackslash}m{3.5cm}|>{\raggedright\arraybackslash}m{7.5cm}|}
+\hline
+\textbf{Lớp} & \normalfont\textbf{Thuộc tính chính} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Lớp} & \normalfont\textbf{Thuộc tính chính} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+
+\textbf{User} &
+  email, password\_hash, status: UserStatus &
+  Bản ghi tài khoản trung tâm. Mọi vai trò (Khách đến Quản trị viên) đều
+  là \texttt{User} phân biệt qua \texttt{UserRoleAssignment}.
+  \texttt{password\_hash} dùng Argon2id (UC-AUTH-01). \\ \hline
+
+\textbf{Profile} &
+  full\_name, phone, avatar\_url &
+  Thông tin hiển thị. Tạo trong cùng giao dịch với \texttt{User}
+  (quan hệ kết hợp — không tồn tại độc lập). \\ \hline
+
+\textbf{StaffProfile} &
+  employee\_code, primary\_branch\_id &
+  Thông tin nhân sự bổ sung, chỉ tồn tại với Huấn luyện viên và Quản lý.
+  Tạo khi Quản trị viên onboard nhân sự (UC-ADMIN-02). \\ \hline
+
+\textbf{UserRoleAssignment} &
+  role: Role, assigned\_at &
+  Bảng trung gian giữa \texttt{User} và enum \texttt{Role}.
+  Một người dùng có thể mang nhiều vai trò đồng thời. \\ \hline
+
+\textbf{RefreshSession} &
+  token\_hash, expires\_at, revoked &
+  Lưu mã làm mới đã băm. Toàn bộ bị thu hồi khi đăng xuất
+  hoặc đặt lại mật khẩu (UC-AUTH-02, UC-AUTH-03). \\ \hline
+
+\textbf{PasswordResetToken} &
+  token\_hash, expires\_at, used &
+  Mã dùng một lần, thời hạn 24 giờ. Dùng cho cả ``Quên mật khẩu''
+  (UC-AUTH-03) và ``Đặt mật khẩu lần đầu'' (UC-ADMIN-02). \\ \hline
+
+\textbf{Branch} &
+  name, address, open/close\_time, zalo\_link, status: BranchStatus &
+  Đơn vị tổ chức cơ bản. Mọi dữ liệu vận hành đều thuộc phạm vi
+  theo \texttt{branch\_id}. \\ \hline
+
+\textbf{BranchManagerAssignment} &
+  manager\_id, branch\_id, assigned\_at &
+  Bảng trung gian nhiều-nhiều: 1 Quản lý có thể phụ trách nhiều chi
+  nhánh; Quản trị viên gán qua UC-ADMIN-02. \\ \hline
+
+\textbf{AuditLog} &
+  event\_type, entity\_type, entity\_id, payload: JSON &
+  Chỉ ghi thêm, không sửa xoá. Ghi lại mọi sự kiện nghiệp vụ.
+  \texttt{actor\_id} cho phép null để hỗ trợ sự kiện do hệ thống tự kích hoạt. \\ \hline
+
+\end{longtable}
+\endgroup
+
+\begin{table}[h]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|>{\centering\arraybackslash}m{3.5cm}|>{\centering\arraybackslash}m{3.5cm}|>{\centering\arraybackslash}m{2cm}|>{\raggedright\arraybackslash}m{5cm}|}
+\hline
+\textbf{Nguồn} & \textbf{Đích} & \textbf{Quan hệ} & \textbf{Ý nghĩa} \\ \hline
+User & Profile & 1 $\to$ 1 (kết hợp) & Profile không tồn tại khi không có User. \\ \hline
+User & StaffProfile & 1 $\to$ 0..1 (kết hợp) & Chỉ Huấn luyện viên/Quản lý có StaffProfile. \\ \hline
+User & UserRoleAssignment & 1 $\to$ 0..* (kết hợp) & Gán/gỡ bởi Quản trị viên. \\ \hline
+User & RefreshSession & 1 $\to$ 0..* (kết hợp) & Thu hồi toàn bộ khi đổi mật khẩu. \\ \hline
+StaffProfile & Branch & * $\to$ 1 & Nhân sự thuộc về 1 chi nhánh chính. \\ \hline
+User & BranchManagerAssignment & 1 $\to$ 0..* & Quản lý phụ trách nhiều chi nhánh. \\ \hline
+Branch & BranchManagerAssignment & 1 $\to$ 0..* & Chi nhánh có thể có nhiều Quản lý. \\ \hline
+\end{tabular}
+\caption{Quan hệ chính — Sơ đồ thực thể 1}
+\end{table}
+
+\newpage
+% ── Sơ đồ thực thể 2 ────────────────────────────────────────
+\subsubsection{Sơ đồ thực thể 2: Danh mục, Tập thử \& Gói dịch vụ}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.90\linewidth]{CD2.png}
+    \caption{Sơ đồ lớp thực thể — Danh mục, Tập thử \& Gói dịch vụ}
+\end{figure}
+
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3.2cm}|>{\ttfamily\raggedright\arraybackslash}m{3.5cm}|>{\raggedright\arraybackslash}m{7.5cm}|}
+\hline
+\textbf{Lớp} & \normalfont\textbf{Thuộc tính chính} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Lớp} & \normalfont\textbf{Thuộc tính chính} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+
+\textbf{MembershipPackage} &
+  type: PackageType, price, sessions, duration\_days,
+  status: PackageStatus &
+  Gói dịch vụ do Quản lý quản lý (UC-MGR-03). \texttt{PackageType}
+  phân biệt \texttt{SUBSCRIPTION} và \texttt{COURSE}. Mặc định
+  tạo ở trạng thái \texttt{INACTIVE}. \\ \hline
+
+\textbf{Promotion} &
+  code, discount\_type, discount\_value, starts\_at,
+  ends\_at, stackable &
+  Chương trình khuyến mãi. \texttt{stackable} kiểm soát việc áp đồng
+  thời nhiều khuyến mãi. Kiểm tra hiệu lực tại thời điểm tạo hoá đơn
+  (UC-MGR-01 bước 2). \\ \hline
+
+\textbf{TrialBooking} &
+  scheduled\_date, time\_slot, status: TrialStatus &
+  Vòng đời đặt lịch tập thử (UC-GUEST-02). Trạng thái:
+  registered $\to$ confirmed $\to$ attended/no\_show
+  $\to$ converted. Tối đa 1 lịch đang hoạt động mỗi Khách. \\ \hline
+
+\textbf{Subscription} &
+  sessions\_remaining, expires\_at,
+  status: SubscriptionStatus &
+  Quyền tập phòng gym. Tạo tự động sau khi hoá đơn chuyển sang
+  trạng thái \texttt{paid}. Kích hoạt DB trigger trừ \texttt{sessions\_remaining}
+  sau mỗi lần điểm danh (UC-MEMBER-01). \\ \hline
+
+\textbf{CourseEnrollment} &
+  sessions\_remaining, expires\_at,
+  status: EnrollmentStatus &
+  Đăng ký khoá học cá nhân với Huấn luyện viên. Cơ chế kích hoạt
+  và trừ buổi giống \texttt{Subscription}. \\ \hline
+
+\textbf{HealthProfile} &
+  height\_cm, fitness\_goal, allergies[], medical\_conditions[] &
+  Hồ sơ sức khoẻ nền (UC-MEMBER-03). Đầu vào cho tư vấn
+  Huấn luyện viên và cảnh báo sinh trắc. \\ \hline
+
+\end{longtable}
+\endgroup
+
+\begin{table}[h]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|>{\centering\arraybackslash}m{3.5cm}|>{\centering\arraybackslash}m{3.5cm}|>{\centering\arraybackslash}m{2cm}|>{\raggedright\arraybackslash}m{5cm}|}
+\hline
+\textbf{Nguồn} & \textbf{Đích} & \textbf{Quan hệ} & \textbf{Ý nghĩa} \\ \hline
+Branch & MembershipPackage & 1 $\to$ 0..* (kết hợp) & Gói thuộc phạm vi chi nhánh. \\ \hline
+Branch & Promotion & 1 $\to$ 0..* (kết hợp) & Khuyến mãi thuộc chi nhánh. \\ \hline
+User (Khách) & TrialBooking & 1 $\to$ 0..* & Tối đa 1 lịch tập thử đang hoạt động tại 1 thời điểm. \\ \hline
+MembershipPackage & Subscription & 1 $\to$ 0..* & Gói đăng ký biết mình được tạo từ gói nào. \\ \hline
+MembershipPackage & CourseEnrollment & 1 $\to$ 0..* & Tương tự Gói $\to$ Đăng ký tháng. \\ \hline
+User (Hội viên) & HealthProfile & 1 $\to$ 0..1 (kết hợp) & Mỗi Hội viên có tối đa 1 hồ sơ sức khoẻ. \\ \hline
+\end{tabular}
+\caption{Quan hệ chính — Sơ đồ thực thể 2}
+\end{table}
+
+\newpage
+% ── Sơ đồ thực thể 3 ────────────────────────────────────────
+\subsubsection{Sơ đồ thực thể 3: Ca tập, Tài chính, Đánh giá \& Thiết bị}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.90\linewidth]{CD3.png}
+    \caption{Sơ đồ lớp thực thể — Ca tập, Tài chính, Đánh giá \& Thiết bị}
+\end{figure}
+
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3.2cm}|>{\ttfamily\raggedright\arraybackslash}m{3.5cm}|>{\raggedright\arraybackslash}m{7.5cm}|}
+\hline
+\textbf{Lớp} & \normalfont\textbf{Thuộc tính chính} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Lớp} & \normalfont\textbf{Thuộc tính chính} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+
+\textbf{Shift} &
+  start\_time, end\_time, capacity,
+  trainer\_slots\_needed, status: ShiftStatus &
+  Ca tập tại chi nhánh. Cửa sổ điểm danh hợp lệ là
+  \texttt{[start - 30', end]}. Quản lý có thêm khoảng gia hạn sau
+  \texttt{end} (UC-MGR-04). \\ \hline
+
+\textbf{TrainerAssignment} &
+  coach\_id, shift\_id, assigned\_at, cancelled\_at &
+  Huấn luyện viên tự đăng ký ca (UC-COACH-01). Kiểm tra không trùng
+  giờ và còn chỗ trống. \texttt{cancelled\_at} cho phép null:
+  null = đang hoạt động. \\ \hline
+
+\textbf{ClassAttendance} &
+  checkin\_time, proxy\_checkin,
+  override\_actor: OverrideActor, override\_reason &
+  Ghi nhận Hội viên có mặt. \texttt{override\_actor} phân
+  biệt người thực hiện (Huấn luyện viên qua UC-COACH-03 hay Quản lý
+  qua UC-MGR-04). \texttt{override\_reason} bắt buộc nhập. \\ \hline
+
+\textbf{MemberWeightLog} &
+  weight\_kg, recorded\_at &
+  Chỉ số sinh trắc ghi trong cùng giao dịch nguyên tử với
+  \texttt{ClassAttendance}. \texttt{shift\_id} cho phép null
+  cho trường hợp nhập tay khi cân hỏng (NL-4). \\ \hline
+
+\textbf{Invoice} &
+  status: InvoiceStatus, total\_amount,
+  member\_id, manager\_id &
+  Hỗ trợ thanh toán từng phần cho đến khi \texttt{status = paid}
+  mới kích hoạt gói đăng ký (UC-MGR-01). \\ \hline
+
+\textbf{InvoiceLineItem} &
+  name\_snapshot, price\_snapshot, quantity &
+  Chốt tên và giá tại thời điểm lập hoá đơn. Tách khỏi
+  \texttt{MembershipPackage} để việc thay đổi giá sau không
+  ảnh hưởng hoá đơn cũ. \\ \hline
+
+\textbf{Payment} &
+  method: PaymentMethod, amount, paid\_at &
+  Ghi từng lần thu tiền. Tổng \texttt{amount} so với
+  \texttt{Invoice.total\_amount} quyết định trạng
+  thái \texttt{paid} hay \texttt{pending}. \\ \hline
+
+\textbf{Refund} &
+  amount, reason, refunded\_at &
+  Hoàn tiền toàn phần tự động vô hiệu hoá Gói đăng ký/Đăng ký khoá học.
+  \texttt{reason} bắt buộc nhập (UC-MGR-02). \\ \hline
+
+\textbf{Review} &
+  target\_type: ReviewTargetType, target\_id: UUID,
+  rating, tags[], status: ReviewStatus &
+  Đích đánh giá đa hình (UC-MEMBER-04). Giới hạn tần suất
+  áp dụng riêng theo từng \texttt{target\_type}. \\ \hline
+
+\textbf{ReviewModerationLog} &
+  old\_status, new\_status, reason, moderator\_id &
+  Nhật ký mọi hành động kiểm duyệt (UC-MGR-06).
+  \texttt{reason} bắt buộc nhập. \\ \hline
+
+\textbf{EquipmentType} &
+  name, quantity, status: AssetStatus &
+  Khi \texttt{status = BROKEN} và là cân InBody,
+  hệ thống tự bật chế độ nhập cân tay thay thế (UC-MGR-05). \\ \hline
+
+\end{longtable}
+\endgroup
+
+\begin{table}[h]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|>{\centering\arraybackslash}m{3.5cm}|>{\centering\arraybackslash}m{3.5cm}|>{\centering\arraybackslash}m{2cm}|>{\raggedright\arraybackslash}m{5cm}|}
+\hline
+\textbf{Nguồn} & \textbf{Đích} & \textbf{Quan hệ} & \textbf{Ý nghĩa} \\ \hline
+Branch & Shift & 1 $\to$ 0..* (kết hợp) & Ca tập thuộc chi nhánh. \\ \hline
+Shift & TrainerAssignment & 1 $\to$ 0..* (kết hợp) & Tối đa \texttt{trainer\_slots\_needed} Huấn luyện viên/ca. \\ \hline
+Shift & ClassAttendance & 1 $\to$ 0..* (kết hợp) & Ràng buộc duy nhất (member\_id, shift\_id) ngăn trùng. \\ \hline
+ClassAttendance & MemberWeightLog & 1 $\to$ 0..1 (kết hợp) & Chỉ số sinh trắc tạo trong cùng giao dịch. \\ \hline
+Invoice & InvoiceLineItem & 1 $\to$ 1..* (kết hợp) & Tối thiểu 1 dòng chi tiết. \\ \hline
+Invoice & Payment & 1 $\to$ 0..* (kết hợp) & Hỗ trợ thanh toán nhiều lần. \\ \hline
+Invoice & Refund & 1 $\to$ 0..1 & Một hoá đơn chỉ hoàn tiền 1 lần. \\ \hline
+Invoice & Subscription & $\dashrightarrow$ 0..1 & Kích hoạt gói sau khi hoá đơn \texttt{paid}. \\ \hline
+Review & ReviewModerationLog & 1 $\to$ 0..* (kết hợp) & Lịch sử kiểm duyệt của một đánh giá. \\ \hline
+Branch & EquipmentType & 1 $\to$ 0..* (kết hợp) & Thiết bị thuộc phạm vi chi nhánh. \\ \hline
+\end{tabular}
+\caption{Quan hệ chính — Sơ đồ thực thể 3}
+\end{table}
+
+\newpage
+% ── Bảng enum ────────────────────────────────────────────────
+\subsubsection{Tổng hợp các kiểu liệt kê}
+
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3.5cm}|>{\ttfamily\raggedright\arraybackslash}m{5.5cm}|>{\raggedright\arraybackslash}m{5cm}|}
+\hline
+\textbf{Kiểu liệt kê} & \normalfont\textbf{Giá trị} & \textbf{Dùng tại} \\ \hline
+\endfirsthead
+\hline
+\textbf{Kiểu liệt kê} & \normalfont\textbf{Giá trị} & \textbf{Dùng tại} \\ \hline
+\endhead
+\hline
+\endfoot
+
+\texttt{UserStatus} &
+  ACTIVE, INACTIVE, PENDING\_PASSWORD\_RESET &
+  Kiểm tra trước mỗi lần đăng nhập. \\ \hline
+
+\texttt{Role} &
+  GUEST, MEMBER, COACH, MANAGER, ADMIN &
+  Điều hướng màn hình sau đăng nhập. \\ \hline
+
+\texttt{PackageType} &
+  SUBSCRIPTION, COURSE &
+  Quyết định tạo \texttt{Subscription} hay \texttt{CourseEnrollment}
+  sau khi hoá đơn được thanh toán. \\ \hline
+
+\texttt{TrialStatus} &
+  registered, confirmed, attended, no\_show, converted, cancelled &
+  Vòng đời phễu chuyển đổi khách tập thử (UC-GUEST-02). \\ \hline
+
+\texttt{ShiftStatus} &
+  SCHEDULED, IN\_PROGRESS, COMPLETED, CANCELLED &
+  Lọc ca trong cửa sổ điểm danh hợp lệ. \\ \hline
+
+\texttt{OverrideActor} &
+  coach, manager &
+  Xác định ai thực hiện điểm danh thay mặt thành viên. \\ \hline
+
+\texttt{InvoiceStatus} &
+  pending, paid, cancelled, refunded &
+  Điều kiện kích hoạt gói đăng ký và cho phép hoàn tiền. \\ \hline
+
+\texttt{PaymentMethod} &
+  cash, transfer, card &
+  Phân loại để đối soát thu ngân cuối ngày (UC-MGR-07). \\ \hline
+
+\texttt{ReviewTargetType} &
+  shift, coach, equipment, exercise &
+  Xác định đối tượng được đánh giá và chính sách giới hạn tần suất. \\ \hline
+
+\texttt{ReviewStatus} &
+  visible, flagged, hidden &
+  Luồng kiểm duyệt nội dung. Tự động chuyển sang \texttt{flagged}
+  khi vi phạm (NL-3, UC-MEMBER-04). \\ \hline
+
+\texttt{AssetStatus} &
+  ACTIVE, MAINTENANCE, BROKEN, RETIRED &
+  Khi trạng thái là \texttt{BROKEN}: hệ thống tự bật chế độ
+  nhập cân nặng thủ công. \\ \hline
+
+\end{longtable}
+\endgroup
+
+\newpage
+% ------------------------------------------------------------
+\subsection{Lớp truy cập dữ liệu (Repository Layer)}
+% ------------------------------------------------------------
+
+Tầng Repository cung cấp giao diện để tầng Nghiệp vụ truy vấn
+cơ sở dữ liệu mà không biết chi tiết câu lệnh SQL. Mỗi giao diện bao gồm
+các phương thức thao tác dữ liệu cơ bản và các truy vấn nghiệp vụ đặc thù.
+
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3.8cm}|>{\ttfamily\raggedright\arraybackslash}m{10.2cm}|}
+\hline
+\textbf{Giao diện} & \normalfont\textbf{Phương thức nghiệp vụ đặc thù} \\ \hline
+\endfirsthead
+\hline
+\textbf{Giao diện} & \normalfont\textbf{Phương thức nghiệp vụ đặc thù} \\ \hline
+\endhead
+\hline
+\endfoot
+
+\textbf{UserRepository} &
+  findByEmail(email),
+  findByIdWithRoles(id),
+  existsByEmail(email),
+  existsByEmployeeCode(code) \\ \hline
+
+\textbf{BranchRepository} &
+  findAllActive(),
+  findByManagerId(managerId) \\ \hline
+
+\textbf{PackageRepository} &
+  findAllActiveByBranch(branchId, type),
+  findActiveById(id) \\ \hline
+
+\textbf{PromotionRepository} &
+  findValidByCode(code, now),
+  findActiveByBranch(branchId),
+  incrementUsageCount(promoId) \\ \hline
+
+\textbf{TrialBookingRepository} &
+  findActiveByGuest(guestId),
+  findByBranchAndSlot(branchId, date, slot),
+  countAvailableSlots(branchId, date) \\ \hline
+
+\textbf{SubscriptionRepository} &
+  findActiveByMember(memberId),
+  findActiveByMemberAndType(memberId, type),
+  decrementSessions(id) \\ \hline
+
+\textbf{CourseEnrollmentRepository} &
+  findActiveByMember(memberId),
+  decrementSessions(id) \\ \hline
+
+\textbf{ShiftRepository} &
+  findAvailableInWindow(branchId, from, to),
+  findByCoachAndDate(coachId, date),
+  hasTimeOverlap(coachId, start, end) \\ \hline
+
+\textbf{TrainerAssignmentRepository} &
+  findActiveByCoachAndShift(coachId, shiftId),
+  findActiveByShift(shiftId),
+  countActiveByShift(shiftId) \\ \hline
+
+\textbf{AttendanceRepository} &
+  findByMemberAndShift(memberId, shiftId),
+  findByShift(shiftId),
+  existsDuplicate(memberId, shiftId) \\ \hline
+
+\textbf{InvoiceRepository} &
+  findByMember(memberId),
+  findByBranchAndDate(branchId, date),
+  sumPayments(invoiceId) \\ \hline
+
+\textbf{ReviewRepository} &
+  findByTarget(type, targetId),
+  countByMemberTargetSince(memberId, type, targetId, since),
+  findFlaggedByBranch(branchId) \\ \hline
+
+\textbf{AuditLogRepository} &
+  append(event),
+  findByEntityAndId(type, id) \\ \hline
+
+\end{longtable}
+\endgroup
+
+\newpage
+% ------------------------------------------------------------
+\subsection{Lớp nghiệp vụ (Service Layer)}
+% ------------------------------------------------------------
+
+Tầng Nghiệp vụ triển khai toàn bộ logic của 19 ca sử dụng. Mỗi lớp Service
+chịu trách nhiệm cho một nhóm UC cùng miền; không lớp Service nào
+truy cập trực tiếp cơ sở dữ liệu mà phải thông qua Repository.
+
+\subsubsection*{Nhóm Xác thực}
+
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{2.8cm}|>{\sloppy\small\ttfamily\raggedright\arraybackslash}p{7cm}|>{\raggedright\arraybackslash}m{4.5cm}|}
+\hline
+\textbf{Lớp Service} & \normalfont\normalsize\textbf{Phương thức} & \textbf{UC tương ứng} \\ \hline
+\endfirsthead
+\hline
+\textbf{Lớp Service} & \normalfont\normalsize\textbf{Phương thức} & \textbf{UC tương ứng} \\ \hline
+\endhead
+\hline
+\endfoot
+
+\multirow{5}{*}{\textbf{AuthService}} &
+  register(email, password, name, phone) &
+  UC-AUTH-01: Tạo \texttt{User} + \texttt{Profile} + vai trò GUEST, gửi email xác minh. \\ \cline{2-3}
+& login(email, password) &
+  UC-AUTH-02: Kiểm tra mã băm, cấp mã truy cập + mã làm mới, ghi nhật ký. \\ \cline{2-3}
+& logout(refreshToken) &
+  UC-AUTH-02: Thu hồi phiên, ghi nhật ký kiểm toán. \\ \cline{2-3}
+& forgotPassword(email) &
+  UC-AUTH-03: Tạo mã đặt lại thời hạn 24h, gửi email. \\ \cline{2-3}
+& resetPassword(token, newPassword) &
+  UC-AUTH-03: Kiểm tra mã, cập nhật mã băm, thu hồi toàn bộ phiên. \\ \hline
+
+\end{longtable}
+\endgroup
+
+\subsubsection*{Nhóm Khách}
+
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{2.8cm}|>{\sloppy\small\ttfamily\raggedright\arraybackslash}p{7cm}|>{\raggedright\arraybackslash}m{4.5cm}|}
+\hline
+\textbf{Lớp Service} & \normalfont\normalsize\textbf{Phương thức} & \textbf{UC tương ứng} \\ \hline
+\endfirsthead
+\hline
+\textbf{Lớp Service} & \normalfont\normalsize\textbf{Phương thức} & \textbf{UC tương ứng} \\ \hline
+\endhead
+\hline
+\endfoot
+
+\multirow{2}{*}{\textbf{PackageService}} &
+  getActiveCatalog(branchId, type) &
+  UC-GUEST-01: Lấy danh sách gói đang hoạt động, lọc theo loại/chi nhánh. \\ \cline{2-3}
+& getPackageDetail(packageId) &
+  UC-GUEST-01: Lấy chi tiết 1 gói (mô tả, điều khoản, câu hỏi thường gặp). \\ \hline
+
+\multirow{3}{*}{\textbf{TrialService}} &
+  getAvailableSlots(branchId, date) &
+  UC-GUEST-02: Trả danh sách khung giờ còn chỗ trống. \\ \cline{2-3}
+& bookTrial(guestId, branchId, date, slot) &
+  UC-GUEST-02: Tạo lịch tập thử, ghi phễu, gửi email xác nhận. \\ \cline{2-3}
+& getMyTrial(guestId) &
+  UC-GUEST-02: Lấy trạng thái lịch đặt đang hoạt động. \\ \hline
+
+\end{longtable}
+\endgroup
+
+\subsubsection*{Nhóm Hội viên}
+
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{2.8cm}|>{\sloppy\small\ttfamily\raggedright\arraybackslash}p{7cm}|>{\raggedright\arraybackslash}m{4.5cm}|}
+\hline
+\textbf{Lớp Service} & \normalfont\normalsize\textbf{Phương thức} & \textbf{UC tương ứng} \\ \hline
+\endfirsthead
+\hline
+\textbf{Lớp Service} & \normalfont\normalsize\textbf{Phương thức} & \textbf{UC tương ứng} \\ \hline
+\endhead
+\hline
+\endfoot
+
+\multirow{3}{*}{\textbf{CheckInService}} &
+  getAvailableShifts(memberId) &
+  UC-MEMBER-01: Lọc ca trong cửa sổ hợp lệ, chưa điểm danh. \\ \cline{2-3}
+& checkIn(memberId, shiftId, weightKg) &
+  UC-MEMBER-01: Giao dịch nguyên tử: điểm danh + ghi cân + trừ buổi. \\ \cline{2-3}
+& requestSupport(memberId, shiftId) &
+  UC-MEMBER-01 NL-5: Gửi thông báo đến Quản lý. \\ \hline
+
+\multirow{4}{*}{\textbf{MemberProfileService}} &
+  getCheckInHistory(memberId) &
+  UC-MEMBER-02: Mục (a) — lịch sử điểm danh. \\ \cline{2-3}
+& getActiveSubscriptions(memberId) &
+  UC-MEMBER-02: Mục (b) — gói đang sử dụng. \\ \cline{2-3}
+& getInvoices(memberId) &
+  UC-MEMBER-02: Mục (c) — hoá đơn \& thanh toán. \\ \cline{2-3}
+& getWeightProgress(memberId) &
+  UC-MEMBER-02: Mục (d) — biểu đồ cân nặng. \\ \hline
+
+\multirow{2}{*}{\textbf{HealthProfileService}} &
+  getHealthProfile(memberId) &
+  UC-MEMBER-03: Lấy hồ sơ sức khoẻ. \\ \cline{2-3}
+& upsertHealthProfile(memberId, data) &
+  UC-MEMBER-03: Tạo mới hoặc cập nhật, ghi nhật ký kiểm toán. \\ \hline
+
+\multirow{2}{*}{\textbf{ReviewService}} &
+  submitReview(memberId, targetType, targetId, rating, comment) &
+  UC-MEMBER-04: Áp dụng giới hạn tần suất, lưu đánh giá, tự động gắn cờ nếu vi phạm. \\ \cline{2-3}
+& checkRateLimit(memberId, type, targetId) &
+  UC-MEMBER-04: Kiểm tra chính sách theo \texttt{target\_type}. \\ \hline
+
+\end{longtable}
+\endgroup
+
+\subsubsection*{Nhóm Huấn luyện viên}
+
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{2.8cm}|>{\sloppy\small\ttfamily\raggedright\arraybackslash}p{7cm}|>{\raggedright\arraybackslash}m{4.5cm}|}
+\hline
+\textbf{Lớp Service} & \normalfont\normalsize\textbf{Phương thức} & \textbf{UC tương ứng} \\ \hline
+\endfirsthead
+\hline
+\textbf{Lớp Service} & \normalfont\normalsize\textbf{Phương thức} & \textbf{UC tương ứng} \\ \hline
+\endhead
+\hline
+\endfoot
+
+\multirow{2}{*}{\textbf{ShiftRegistration-}\newline\textbf{Service}} &
+  registerShift(coachId, shiftId) &
+  UC-COACH-01 (a): Kiểm tra không trùng giờ, tạo phân công. \\ \cline{2-3}
+& cancelShift(coachId, assignmentId) &
+  UC-COACH-01 (b): Kiểm tra ca chưa bắt đầu, ghi \texttt{cancelled\_at}. \\ \hline
+
+\multirow{3}{*}{\textbf{ShiftManagement-}\newline\textbf{Service}} &
+  getMyShiftsByDate(coachId, date) &
+  UC-COACH-02: Lấy ca theo ngày từ bảng phân công. \\ \cline{2-3}
+& getRoster(coachId, shiftId) &
+  UC-COACH-02: Danh sách điểm danh thời gian thực của ca. \\ \cline{2-3}
+& getMemberDetail(coachId, memberId) &
+  UC-COACH-02: Tên, ảnh, cân nặng hôm nay, số buổi còn lại. \\ \hline
+
+\multirow{2}{*}{\textbf{ProxyCheckIn-}\newline\textbf{Service}} &
+  proxyCheckIn(coachId, memberId, shiftId, reason) &
+  UC-COACH-03: Giao dịch điểm danh với \texttt{proxy\_checkin=true}. \\ \cline{2-3}
+& escalateToManager(coachId, memberId, shiftId) &
+  UC-COACH-03 bước 5: Gửi thông báo Quản lý khi vượt thẩm quyền. \\ \hline
+
+\end{longtable}
+\endgroup
+
+\subsubsection*{Nhóm Quản lý}
+
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{2.8cm}|>{\sloppy\small\ttfamily\raggedright\arraybackslash}p{7cm}|>{\raggedright\arraybackslash}m{4.5cm}|}
+\hline
+\textbf{Lớp Service} & \normalfont\normalsize\textbf{Phương thức} & \textbf{UC tương ứng} \\ \hline
+\endfirsthead
+\hline
+\textbf{Lớp Service} & \normalfont\normalsize\textbf{Phương thức} & \textbf{UC tương ứng} \\ \hline
+\endhead
+\hline
+\endfoot
+
+\multirow{3}{*}{\textbf{POSService}} &
+  createInvoice(managerId, memberId, packageId) &
+  UC-MGR-01: Chốt giá, tạo hoá đơn ở trạng thái PENDING. \\ \cline{2-3}
+& applyPromotion(invoiceId, promoCode) &
+  UC-MGR-01 bước 2: Kiểm tra hiệu lực, khả năng gộp, điều kiện áp dụng. \\ \cline{2-3}
+& recordPayment(invoiceId, method, amount) &
+  UC-MGR-01 bước 4-5: Tích luỹ thanh toán, kích hoạt gói khi đủ tiền. \\ \hline
+
+\multirow{2}{*}{\textbf{RefundService}} &
+  cancelInvoice(managerId, invoiceId, reason) &
+  UC-MGR-02: Chỉ huỷ được hoá đơn ở trạng thái PENDING. \\ \cline{2-3}
+& refundInvoice(managerId, invoiceId, amount, reason) &
+  UC-MGR-02: Hoàn tiền toàn phần vô hiệu hoá gói đăng ký tương ứng. \\ \hline
+
+\multirow{4}{*}{\textbf{CatalogService}} &
+  upsertPackage(managerId, data) &
+  UC-MGR-03: Tạo mới (mặc định INACTIVE) hoặc chỉnh sửa gói. \\ \cline{2-3}
+& togglePackageStatus(managerId, packageId) &
+  UC-MGR-03: Bật/tắt trạng thái ACTIVE. \\ \cline{2-3}
+& upsertPromotion(managerId, data) &
+  UC-MGR-03: Tạo mới hoặc chỉnh sửa chương trình khuyến mãi. \\ \cline{2-3}
+& togglePromotionStatus(managerId, promoId) &
+  UC-MGR-03: Bật/tắt khuyến mãi. \\ \hline
+
+\textbf{OverrideCheckIn-}\newline\textbf{Service} &
+  overrideCheckIn(managerId, memberId, shiftId, reason) &
+  UC-MGR-04: Ghi đè điểm danh, kiểm tra khoảng gia hạn và thẩm quyền. \\ \hline
+
+\multirow{3}{*}{\textbf{EquipmentService}} &
+  upsertEquipment(managerId, data) &
+  UC-MGR-05: Tạo/chỉnh sửa loại thiết bị. \\ \cline{2-3}
+& updateStatus(managerId, id, status) &
+  UC-MGR-05: Đổi trạng thái ACTIVE/MAINTENANCE/BROKEN/RETIRED. \\ \cline{2-3}
+& deleteEquipment(managerId, id) &
+  UC-MGR-05: Chỉ xoá khi số lượng bằng 0 hoặc RETIRED. \\ \hline
+
+\multirow{2}{*}{\textbf{ReviewModeration-}\newline\textbf{Service}} &
+  getModerationQueue(branchId) &
+  UC-MGR-06: Lấy danh sách đánh giá visible/flagged của chi nhánh. \\ \cline{2-3}
+& moderateReview(managerId, reviewId, newStatus, reason) &
+  UC-MGR-06: Đổi trạng thái, ghi nhật ký kiểm duyệt. \\ \hline
+
+\multirow{5}{*}{\textbf{ReportService}} &
+  getDailyOverview(branchId, date) &
+  UC-MGR-07 màn hình (a): Số điểm danh, doanh thu, lịch tập thử mới. \\ \cline{2-3}
+& getRosterByShift(branchId, shiftId) &
+  UC-MGR-07 màn hình (b): Danh sách điểm danh chi tiết theo ca. \\ \cline{2-3}
+& getTrialFunnel(branchId, from, to) &
+  UC-MGR-07 màn hình (c): Tỷ lệ chuyển đổi theo các bước phễu. \\ \cline{2-3}
+& getFinancialReconciliation(\allowbreak branchId, date) &
+  UC-MGR-07 màn hình (d): Tổng thu theo phương thức, hoàn tiền. \\ \cline{2-3}
+& getReviewSummary(branchId) &
+  UC-MGR-07 màn hình (e): Điểm trung bình theo \texttt{target\_type}. \\ \hline
+
+\end{longtable}
+\endgroup
+
+\subsubsection*{Nhóm Quản trị viên}
+
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{2.8cm}|>{\sloppy\small\ttfamily\raggedright\arraybackslash}p{7cm}|>{\raggedright\arraybackslash}m{4.5cm}|}
+\hline
+\textbf{Lớp Service} & \normalfont\normalsize\textbf{Phương thức} & \textbf{UC tương ứng} \\ \hline
+\endfirsthead
+\hline
+\textbf{Lớp Service} & \normalfont\normalsize\textbf{Phương thức} & \textbf{UC tương ứng} \\ \hline
+\endhead
+\hline
+\endfoot
+
+\multirow{3}{*}{\textbf{BranchAdminService}} &
+  createBranch(data) &
+  UC-ADMIN-01: Tạo chi nhánh, trạng thái ACTIVE. \\ \cline{2-3}
+& updateBranch(branchId, data) &
+  UC-ADMIN-01: Sửa thông tin, liên hệ Zalo/hotline. \\ \cline{2-3}
+& closeBranch(branchId) &
+  UC-ADMIN-01: Đóng mềm, cảnh báo nếu còn hội viên đang hoạt động. \\ \hline
+
+\multirow{4}{*}{\textbf{UserAdminService}} &
+  createStaff(data) &
+  UC-ADMIN-02: Giao dịch tạo \texttt{User} + \texttt{Profile} + \texttt{StaffProfile}
+  + vai trò + mã đặt lại; gửi email đặt mật khẩu lần đầu. \\ \cline{2-3}
+& assignRole(userId, role, branchId) &
+  UC-ADMIN-02: Gán vai trò; với MANAGER thì gán chi nhánh kèm theo. \\ \cline{2-3}
+& revokeRole(userId, role) &
+  UC-ADMIN-02: Gỡ vai trò, thu hồi các phiên liên quan. \\ \cline{2-3}
+& setAccountStatus(userId, active) &
+  UC-ADMIN-02: Vô hiệu hoá / khôi phục; chặn vô hiệu Quản trị viên cuối cùng. \\ \hline
+
+\end{longtable}
+\endgroup
+
+\newpage
+% ------------------------------------------------------------
+\subsection{Lớp điều khiển (Controller Layer)}
+% ------------------------------------------------------------
+
+Tầng Controller nhận yêu cầu HTTP, uỷ quyền xác thực và phân quyền
+cho middleware, sau đó gọi đúng Service và trả về phản hồi. Mỗi
+Controller tương ứng với 1 nhóm vai trò trong hệ thống.
+
+\begin{table}[h]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|>{\centering\arraybackslash}m{3.5cm}|>{\raggedright\arraybackslash}m{4cm}|>{\raggedright\arraybackslash}m{6.5cm}|}
+\hline
+\textbf{Controller} & \textbf{Service phụ thuộc} & \textbf{Nhóm điểm cuối API} \\ \hline
+
+\textbf{AuthController} &
+  AuthService &
+  \texttt{POST /auth/register}, \texttt{/login}, \texttt{/logout},
+  \texttt{/forgot-password}, \texttt{/reset-password} \\ \hline
+
+\textbf{GuestController} &
+  PackageService, TrialService &
+  \texttt{GET /packages}, \texttt{/packages/:id};
+  \texttt{POST /trials}, \texttt{GET /trials/me} \\ \hline
+
+\textbf{MemberController} &
+  CheckInService, MemberProfileService,
+  HealthProfileService, ReviewService &
+  \texttt{/check-in}, \texttt{/profile/*},
+  \texttt{/health-profile}, \texttt{/reviews} \\ \hline
+
+\textbf{CoachController} &
+  ShiftRegistrationService,
+  ShiftManagementService,
+  ProxyCheckInService &
+  \texttt{/shifts/available}, \texttt{/shifts/my},
+  \texttt{/shifts/:id/roster}, \texttt{/proxy-checkin} \\ \hline
+
+\textbf{ManagerController} &
+  POSService, RefundService, CatalogService,
+  OverrideCheckInService, EquipmentService,
+  ReviewModerationService, ReportService &
+  \texttt{/pos/*}, \texttt{/catalog/*},
+  \texttt{/override-checkin}, \texttt{/equipment/*},
+  \texttt{/reviews/moderate}, \texttt{/reports/*} \\ \hline
+
+\textbf{AdminController} &
+  BranchAdminService, UserAdminService &
+  \texttt{/admin/branches/*},
+  \texttt{/admin/users/*}, \texttt{/admin/roles/*} \\ \hline
+
+\end{tabular}
+\caption{Ánh xạ Controller — Service — Điểm cuối API}
+\end{table}

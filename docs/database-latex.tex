@@ -1,0 +1,681 @@
+\chapter{Thiết kế hệ thống}
+
+\section{Thiết kế cơ sở dữ liệu}
+
+\subsection{Mô tả các bảng cơ sở dữ liệu}
+
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\setlength{\itemsep}{0pt}
+\begin{longtable}{|>{\centering\arraybackslash}m{4.5cm}|>{\raggedright\arraybackslash}m{11.5cm}|}
+\hline
+\textbf{Tên bảng} & \textbf{Mô tả các cột (kiểu dữ liệu, ràng buộc)} \\ \hline
+\endfirsthead
+\hline
+\textbf{Tên bảng} & \textbf{Mô tả các cột (kiểu dữ liệu, ràng buộc)} \\ \hline
+\endhead
+\hline
+\endfoot
+
+% =========================================
+% NHÓM 1: NGƯỜI DÙNG & PHÂN QUYỀN
+% =========================================
+
+\multicolumn{2}{|l|}{\textbf{Nhóm 1: Người dùng và phân quyền}} \\ \hline
+
+\textbf{users} \newline (người\_dùng) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{email} (text, duy nhất): Email đăng nhập.
+    \item \texttt{password\_hash} (text): Mật khẩu đã băm bằng Argon2id.
+    \item \texttt{status} (text): Trạng thái tài khoản — \texttt{'active'}, \texttt{'inactive'}, \texttt{'suspended'}, \texttt{'deleted'}.
+    \item \texttt{email\_verified\_at} (timestamptz, null): Thời điểm xác thực email.
+    \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
+\end{itemize} \\ \hline
+
+\textbf{profiles} \newline (hồ\_sơ) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{user\_id} (FK → \texttt{users.id}): Liên kết tài khoản người dùng.
+    \item \texttt{full\_name} (text, null): Họ và tên.
+    \item \texttt{phone\_number} (text, null): Số điện thoại.
+    \item \texttt{avatar\_url} (text, null): Đường dẫn ảnh đại diện.
+    \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
+\end{itemize} \\ \hline
+
+\textbf{roles} \newline (vai\_trò) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{code} (text, duy nhất): Mã vai trò — \texttt{'MANAGER'}, \texttt{'TRAINER'}, \texttt{'STAFF'}, \texttt{'MEMBER'}.
+    \item \texttt{name} (text): Tên hiển thị.
+\end{itemize} \\ \hline
+
+\textbf{user\_role\_assignments} \newline (phân\_vai\_trò) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{user\_id} (FK → \texttt{users.id}): Người dùng được gán.
+    \item \texttt{role\_id} (FK → \texttt{roles.id}): Vai trò được gán.
+    \item \texttt{branch\_id} (FK → \texttt{branches.id}, null): Chi nhánh áp dụng; null nếu phạm vi toàn hệ thống.
+    \item \texttt{assigned\_at} (timestamptz): Thời điểm phân công.
+\end{itemize} \\ \hline
+
+% =========================================
+% NHÓM 2: TỔ CHỨC & CHI NHÁNH
+% =========================================
+
+\multicolumn{2}{|l|}{\textbf{Nhóm 2: Tổ chức và chi nhánh}} \\ \hline
+
+\textbf{organizations} \newline (tổ\_chức) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{name} (text): Tên tổ chức/chuỗi phòng gym.
+    \item \texttt{tax\_id} (text, null): Mã số thuế.
+    \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
+\end{itemize} \\ \hline
+
+\textbf{branches} \newline (chi\_nhánh) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{organization\_id} (FK → \texttt{organizations.id}, null): Tổ chức sở hữu.
+    \item \texttt{code} (text, duy nhất): Mã chi nhánh.
+    \item \texttt{name} (text): Tên chi nhánh.
+    \item \texttt{address} (text): Địa chỉ.
+    \item \texttt{phone\_number} (text, null): Số điện thoại.
+    \item \texttt{status} (text): Trạng thái — \texttt{'active'}, \texttt{'inactive'}, \texttt{'maintenance'}.
+    \item \texttt{zalo\_link} (text, null): Link Zalo OA hoặc chat trực tiếp.
+    \item \texttt{zalo\_phone} (text, null): Số Zalo dự phòng khi không có link.
+    \item \texttt{contact\_email} (text, null): Email liên hệ chi nhánh.
+    \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
+\end{itemize} \\ \hline
+
+\textbf{branch\_manager\_assignments} \newline (phân\_công\_quản\_lý) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{branch\_id} (FK → \texttt{branches.id}): Chi nhánh được phân công.
+    \item \texttt{manager\_user\_id} (FK → \texttt{users.id}): Người quản lý.
+    \item \texttt{active\_from} (timestamptz): Thời điểm bắt đầu hiệu lực.
+    \item \texttt{active\_to} (timestamptz, null): Thời điểm kết thúc; null = đang hiệu lực.
+    \item \texttt{created\_at} (timestamptz): Thời điểm tạo bản ghi.
+\end{itemize} \\ \hline
+
+% =========================================
+% NHÓM 3: GÓI TẬP HỘI VIÊN (THEO THỜI GIAN)
+% =========================================
+
+\multicolumn{2}{|l|}{\textbf{Nhóm 3: Gói tập hội viên (theo thời gian)}} \\ \hline
+
+\textbf{membership\_plans} \newline (gói\_tập\_hội\_viên) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{code} (text, duy nhất): Mã gói — \texttt{'MONTHLY'}, \texttt{'QUARTERLY'}, \texttt{'YEARLY'}.
+    \item \texttt{name} (text): Tên gói hiển thị.
+    \item \texttt{price} (bigint): Giá (VNĐ).
+    \item \texttt{duration\_days} (int): Số ngày hiệu lực.
+    \item \texttt{total\_sessions} (int): Tổng số buổi check-in cho phép.
+    \item \texttt{is\_active} (bool): Còn bán hay không.
+    \item \texttt{description} (text, null): Mô tả thêm.
+    \item \texttt{plan\_type} (text, mặc định \texttt{'membership'}): Loại gói.
+    \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
+\end{itemize} \\ \hline
+
+\textbf{subscriptions} \newline (đăng\_ký\_hội\_viên) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{user\_id} (FK → \texttt{users.id}): Thành viên đăng ký.
+    \item \texttt{membership\_plan\_id} (FK → \texttt{membership\_plans.id}): Gói đã chọn.
+    \item \texttt{home\_branch\_id} (FK → \texttt{branches.id}): Chi nhánh đăng ký.
+    \item \texttt{status} (text): Trạng thái — \texttt{'ACTIVE'}, \texttt{'EXPIRED'}, \texttt{'CANCELLED'}, \texttt{'SUSPENDED'}.
+    \item \texttt{started\_at} (timestamptz): Thời điểm bắt đầu.
+    \item \texttt{expires\_at} (timestamptz): Thời điểm hết hạn.
+    \item \texttt{total\_sessions} (int): Tổng số buổi.
+    \item \texttt{sessions\_used} (int): Số buổi đã dùng.
+    \item \texttt{sessions\_remaining} (int): Số buổi còn lại.
+    \item \texttt{activated\_by} (FK → \texttt{users.id}): Nhân viên kích hoạt.
+    \item \texttt{activated\_at} (timestamptz): Thời điểm kích hoạt.
+\end{itemize} \\ \hline
+
+\textbf{subscription\_status\_history} \newline (lịch\_sử\_trạng\_thái\_đăng\_ký) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{subscription\_id} (FK → \texttt{subscriptions.id}): Đăng ký tương ứng.
+    \item \texttt{from\_status} (text, null): Trạng thái cũ.
+    \item \texttt{to\_status} (text): Trạng thái mới.
+    \item \texttt{changed\_by} (FK → \texttt{users.id}): Người thực hiện thay đổi.
+    \item \texttt{reason} (text, null): Lý do thay đổi.
+    \item \texttt{created\_at} (timestamptz): Thời điểm ghi nhận.
+\end{itemize} \\ \hline
+
+\textbf{member\_check\_ins} \newline (điểm\_danh\_hội\_viên) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{user\_id} (FK → \texttt{users.id}): Thành viên check-in.
+    \item \texttt{branch\_id} (FK → \texttt{branches.id}): Chi nhánh thực hiện.
+    \item \texttt{subscription\_id} (FK → \texttt{subscriptions.id}, null): Gói tập đang sử dụng.
+    \item \texttt{check\_in\_time} (timestamptz): Thời điểm check-in.
+    \item \texttt{created\_by} (FK → \texttt{users.id}, null): Nhân viên tạo nếu check-in thủ công.
+    \item \texttt{created\_at} (timestamptz): Thời điểm tạo bản ghi.
+\end{itemize} \\ \hline
+
+% =========================================
+% NHÓM 4: GÓI TẬP THEO BUỔI (KHÓA HỌC)
+% =========================================
+
+\multicolumn{2}{|l|}{\textbf{Nhóm 4: Gói tập theo buổi (khóa học)}} \\ \hline
+
+\textbf{course\_packages} \newline (gói\_tập\_theo\_buổi) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{code} (text, duy nhất): Mã gói — \texttt{'COURSE-30'}, \texttt{'COURSE-60'}, \texttt{'COURSE-120'}.
+    \item \texttt{name} (text): Tên gói — \texttt{'Gói 30 buổi'}, v.v.
+    \item \texttt{total\_sessions} (int): Tổng số buổi (30, 60 hoặc 120).
+    \item \texttt{price\_per\_session} (bigint): Đơn giá mỗi buổi (VNĐ); giảm dần theo số lượng.
+    \item \texttt{total\_price} (bigint): Tổng giá = \texttt{total\_sessions} $\times$ \texttt{price\_per\_session}.
+    \item \texttt{description} (text, null): Mô tả thêm.
+    \item \texttt{is\_active} (bool): Còn bán hay không.
+    \item \texttt{plan\_type} (text, mặc định \texttt{'course'}): Loại gói.
+    \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
+\end{itemize} \\ \hline
+
+\textbf{course\_enrollments} \newline (đăng\_ký\_khóa\_học) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{user\_id} (FK → \texttt{users.id}): Học viên.
+    \item \texttt{course\_package\_id} (FK → \texttt{course\_packages.id}): Gói đã đăng ký.
+    \item \texttt{branch\_id} (FK → \texttt{branches.id}): Chi nhánh.
+    \item \texttt{status} (text): Trạng thái — \texttt{'ACTIVE'}, \texttt{'COMPLETED'}, \texttt{'CANCELLED'}, \texttt{'EXPIRED'}.
+    \item \texttt{enrolled\_at} (timestamptz): Ngày đăng ký.
+    \item \texttt{started\_at} (timestamptz, null): Ngày bắt đầu.
+    \item \texttt{completed\_at} (timestamptz, null): Ngày hoàn thành.
+    \item \texttt{expires\_at} (timestamptz, null): Hạn sử dụng tối đa.
+    \item \texttt{total\_sessions} (int): Tổng số buổi.
+    \item \texttt{sessions\_attended} (int): Số buổi đã tham gia.
+    \item \texttt{sessions\_remaining} (int): Số buổi còn lại.
+    \item \texttt{created\_by} (FK → \texttt{users.id}): Nhân viên tạo đăng ký.
+    \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
+\end{itemize} \\ \hline
+
+% =========================================
+% NHÓM 5: CA TẬP & ĐIỂM DANH LỚP
+% =========================================
+
+\multicolumn{2}{|l|}{\textbf{Nhóm 5: Ca tập và điểm danh lớp học}} \\ \hline
+
+\textbf{shifts} \newline (ca\_tập) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{branch\_id} (FK → \texttt{branches.id}): Chi nhánh.
+    \item \texttt{shift\_code} (text): Mã ca — \texttt{'MORNING\_1'}, \texttt{'AFTERNOON\_2'}, v.v.
+    \item \texttt{date} (date): Ngày diễn ra ca.
+    \item \texttt{start\_at} (timestamptz): Thời điểm bắt đầu dự kiến.
+    \item \texttt{end\_at} (timestamptz): Thời điểm kết thúc dự kiến.
+    \item \texttt{coach\_capacity} (int, mặc định 3): Số huấn luyện viên tối đa cho ca (1–3).
+    \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
+\end{itemize} \\ \hline
+
+\textbf{trainer\_assignments} \newline (phân\_công\_hlv\_ca) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{trainer\_user\_id} (FK → \texttt{users.id}): Huấn luyện viên.
+    \item \texttt{shift\_id} (FK → \texttt{shifts.id}): Ca tập được phân công.
+    \item \texttt{branch\_id} (FK → \texttt{branches.id}): Chi nhánh.
+    \item \texttt{note} (text, null): Ghi chú.
+    \item \texttt{assigned\_at} (timestamptz): Thời điểm phân công.
+    \item \texttt{unassigned\_at} (timestamptz, null): Thời điểm hủy; null = đang hiệu lực.
+    \item \texttt{assigned\_by} (FK → \texttt{users.id}, null): Người thực hiện phân công.
+    \item \texttt{active\_from} (timestamptz): Thời điểm bắt đầu hiệu lực.
+    \item \texttt{active\_to} (timestamptz, null): Thời điểm kết thúc hiệu lực.
+    \item \texttt{is\_locked} (bool, mặc định false): Bị khóa sau khi ca kết thúc.
+    \item \texttt{locked\_at} (timestamptz, null): Thời điểm khóa.
+    \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
+\end{itemize} \\ \hline
+
+\textbf{class\_attendance} \newline (điểm\_danh\_lớp\_học) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{enrollment\_id} (FK → \texttt{course\_enrollments.id}): Đăng ký khóa học tương ứng; dùng để trừ buổi.
+    \item \texttt{user\_id} (FK → \texttt{users.id}): Học viên.
+    \item \texttt{shift\_id} (FK → \texttt{shifts.id}): Ca tập điểm danh.
+    \item \texttt{branch\_id} (FK → \texttt{branches.id}): Chi nhánh.
+    \item \texttt{attended\_at} (timestamptz): Thời điểm tham gia.
+    \item \texttt{check\_in\_time} (timestamptz): Thời điểm check-in thực tế.
+    \item \texttt{status} (text, mặc định \texttt{'PRESENT'}): Trạng thái — \texttt{'PRESENT'}, \texttt{'ABSENT'}, \texttt{'LATE'}, \texttt{'CANCELLED'}.
+    \item \texttt{notes} (text, null): Ghi chú.
+    \item \texttt{proxy\_checkin} (bool, mặc định false): True khi quản lý/HLV check-in thay thành viên.
+    \item \texttt{override\_reason} (text, null): Lý do điểm danh thay; bắt buộc khi \texttt{proxy\_checkin = true}.
+    \item \texttt{override\_actor} (FK → \texttt{users.id}, null): Người thực hiện điểm danh thay.
+    \item \texttt{created\_by} (FK → \texttt{users.id}, null): Nhân viên/HLV tạo bản ghi.
+    \item \texttt{created\_at} (timestamptz): Thời điểm tạo.
+\end{itemize} \\ \hline
+
+% =========================================
+% NHÓM 6: TẬP THỬ & CHUYỂN ĐỔI
+% =========================================
+
+\multicolumn{2}{|l|}{\textbf{Nhóm 6: Tập thử và chuyển đổi}} \\ \hline
+
+\textbf{trial\_bookings} \newline (đặt\_lịch\_tập\_thử) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{guest\_user\_id} (FK → \texttt{users.id}, null): Tài khoản khách nếu đã đăng ký.
+    \item \texttt{full\_name}, \texttt{phone\_number}, \texttt{email} (text): Thông tin khách vãng lai.
+    \item \texttt{branch\_id} (FK → \texttt{branches.id}): Chi nhánh.
+    \item \texttt{trial\_plan\_name} (text): Tên gói tập thử.
+    \item \texttt{scheduled\_at} (timestamptz): Lịch hẹn.
+    \item \texttt{status} (text): Trạng thái — \texttt{'scheduled'}, \texttt{'completed'}, \texttt{'cancelled'}, \texttt{'no\_show'}.
+    \item \texttt{notes} (text, null): Ghi chú.
+    \item \texttt{converted\_subscription\_id} (FK → \texttt{subscriptions.id}, null): Liên kết khi khách trở thành hội viên chính thức.
+    \item \texttt{converted\_at} (timestamptz, null): Thời điểm chuyển đổi.
+    \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
+\end{itemize} \\ \hline
+
+\textbf{trial\_status\_history} \newline (lịch\_sử\_trạng\_thái\_tập\_thử) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{trial\_booking\_id} (FK → \texttt{trial\_bookings.id}): Lịch tập thử tương ứng.
+    \item \texttt{from\_status} (text, null): Trạng thái cũ.
+    \item \texttt{to\_status} (text): Trạng thái mới.
+    \item \texttt{changed\_by} (FK → \texttt{users.id}): Người thực hiện thay đổi.
+    \item \texttt{created\_at} (timestamptz): Thời điểm ghi nhận.
+\end{itemize} \\ \hline
+
+% =========================================
+% NHÓM 7: HUẤN LUYỆN VIÊN RIÊNG (PT)
+% =========================================
+
+\multicolumn{2}{|l|}{\textbf{Nhóm 7: Huấn luyện viên riêng (PT)}} \\ \hline
+
+\textbf{pt\_packages} \newline (gói\_pt) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{code} (text, duy nhất): Mã gói — \texttt{'PT-10'}, \texttt{'PT-20'}, \texttt{'PT-50'}.
+    \item \texttt{name} (text): Tên gói.
+    \item \texttt{price} (bigint): Giá (VNĐ).
+    \item \texttt{total\_sessions} (int): Tổng số buổi PT.
+    \item \texttt{is\_active} (bool): Còn bán hay không.
+    \item \texttt{created\_at} (timestamptz): Thời điểm tạo.
+\end{itemize} \\ \hline
+
+\textbf{pt\_sessions} \newline (buổi\_tập\_pt) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{member\_user\_id} (FK → \texttt{users.id}): Học viên.
+    \item \texttt{trainer\_user\_id} (FK → \texttt{users.id}): Huấn luyện viên.
+    \item \texttt{pt\_package\_id} (FK → \texttt{pt\_packages.id}, null): Gói PT đã đăng ký.
+    \item \texttt{branch\_id} (FK → \texttt{branches.id}): Chi nhánh.
+    \item \texttt{scheduled\_at} (timestamptz): Lịch hẹn dự kiến.
+    \item \texttt{status} (text): Trạng thái — \texttt{'scheduled'}, \texttt{'completed'}, \texttt{'cancelled'}, \texttt{'no\_show'}.
+    \item \texttt{attended\_at} (timestamptz, null): Thời điểm thực tế diễn ra buổi tập.
+    \item \texttt{notes} (text, null): Ghi chú.
+    \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
+\end{itemize} \\ \hline
+
+% =========================================
+% NHÓM 8: NHÂN VIÊN
+% =========================================
+
+\multicolumn{2}{|l|}{\textbf{Nhóm 8: Nhân viên}} \\ \hline
+
+\textbf{staff\_profiles} \newline (hồ\_sơ\_nhân\_viên) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{user\_id} (FK → \texttt{users.id}, duy nhất): Liên kết tài khoản người dùng (1–1).
+    \item \texttt{employee\_code} (text, duy nhất): Mã nhân viên.
+    \item \texttt{job\_title} (text): Chức danh — \texttt{'Personal Trainer'}, \texttt{'Receptionist'}, \texttt{'Manager'}.
+    \item \texttt{primary\_branch\_id} (FK → \texttt{branches.id}): Chi nhánh làm việc chính.
+    \item \texttt{hire\_date} (date): Ngày vào làm.
+    \item \texttt{status} (text): Trạng thái — \texttt{'active'}, \texttt{'inactive'}, \texttt{'terminated'}.
+    \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
+\end{itemize} \\ \hline
+
+% =========================================
+% NHÓM 9: THANH TOÁN & HÓA ĐƠN
+% =========================================
+
+\multicolumn{2}{|l|}{\textbf{Nhóm 9: Thanh toán và hóa đơn}} \\ \hline
+
+\textbf{invoices} \newline (hóa\_đơn) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{invoice\_number} (text, duy nhất): Số hóa đơn.
+    \item \texttt{user\_id} (FK → \texttt{users.id}): Khách hàng.
+    \item \texttt{branch\_id} (FK → \texttt{branches.id}): Chi nhánh xuất hóa đơn.
+    \item \texttt{total\_amount} (bigint): Tổng tiền trước giảm (VNĐ).
+    \item \texttt{discount\_amount} (bigint, mặc định 0): Số tiền được giảm.
+    \item \texttt{promotion\_id} (FK → \texttt{promotions.id}, null): Mã khuyến mãi áp dụng.
+    \item \texttt{status} (text): Trạng thái — \texttt{'pending'}, \texttt{'paid'}, \texttt{'cancelled'}.
+    \item \texttt{due\_date} (timestamptz): Hạn thanh toán.
+    \item \texttt{cancelled\_at} (timestamptz, null): Thời điểm hủy.
+    \item \texttt{cancel\_reason} (text, null): Lý do hủy.
+    \item \texttt{cancelled\_by} (FK → \texttt{users.id}, null): Người hủy.
+    \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
+\end{itemize} \\ \hline
+
+\textbf{payments} \newline (thanh\_toán) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{invoice\_id} (FK → \texttt{invoices.id}): Hóa đơn được thanh toán.
+    \item \texttt{amount} (bigint): Số tiền (VNĐ).
+    \item \texttt{payment\_method} (text): Phương thức — \texttt{'cash'}, \texttt{'transfer'}, \texttt{'pos'}.
+    \item \texttt{status} (text): Kết quả — \texttt{'success'}, \texttt{'failed'}.
+    \item \texttt{transaction\_ref} (text, null): Mã giao dịch tham chiếu.
+    \item \texttt{processed\_at} (timestamptz): Thời điểm xử lý.
+    \item \texttt{created\_by} (FK → \texttt{users.id}): Nhân viên tạo giao dịch.
+\end{itemize} \\ \hline
+
+\textbf{promotions} \newline (khuyến\_mãi) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{code} (text, duy nhất): Mã khuyến mãi.
+    \item \texttt{name} (text): Tên chương trình.
+    \item \texttt{type} (text): Loại giảm — \texttt{'percent'} (theo \%) hoặc \texttt{'fixed\_amount'} (số tiền cố định).
+    \item \texttt{value} (bigint): Giá trị — 0–100 nếu theo \%, hoặc số VNĐ.
+    \item \texttt{starts\_at} (timestamptz): Thời điểm bắt đầu hiệu lực.
+    \item \texttt{ends\_at} (timestamptz): Thời điểm kết thúc hiệu lực.
+    \item \texttt{min\_order\_amount} (bigint, mặc định 0): Giá trị đơn hàng tối thiểu để áp dụng.
+    \item \texttt{max\_uses} (int, null): Số lần dùng tối đa; null = không giới hạn.
+    \item \texttt{uses\_count} (int, mặc định 0): Số lần đã sử dụng.
+    \item \texttt{stackable} (bool): Có thể dùng kết hợp nhiều mã cùng lúc không.
+    \item \texttt{scope} (text): Phạm vi — \texttt{'branch'} (một chi nhánh) hoặc \texttt{'global'} (toàn hệ thống).
+    \item \texttt{branch\_id} (FK → \texttt{branches.id}, null): Chi nhánh áp dụng nếu \texttt{scope = 'branch'}.
+    \item \texttt{is\_active} (bool): Đang hoạt động hay không.
+    \item \texttt{created\_by} (FK → \texttt{users.id}): Người tạo.
+    \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
+\end{itemize} \\ \hline
+
+\textbf{refunds} \newline (hoàn\_tiền) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{invoice\_id} (FK → \texttt{invoices.id}): Hóa đơn cần hoàn.
+    \item \texttt{amount} (bigint): Số tiền hoàn (VNĐ).
+    \item \texttt{reason} (text): Lý do hoàn tiền.
+    \item \texttt{status} (text, mặc định \texttt{'pending'}): Trạng thái — \texttt{'pending'}, \texttt{'completed'}, \texttt{'rejected'}.
+    \item \texttt{processed\_by} (FK → \texttt{users.id}): Người xử lý hoàn tiền.
+    \item \texttt{processed\_at} (timestamptz): Thời điểm xử lý.
+    \item \texttt{created\_at} (timestamptz): Thời điểm tạo yêu cầu.
+\end{itemize} \\ \hline
+
+% =========================================
+% NHÓM 10: SỨC KHỎE & CHỈ SỐ CƠ THỂ
+% =========================================
+
+\multicolumn{2}{|l|}{\textbf{Nhóm 10: Sức khỏe và chỉ số cơ thể}} \\ \hline
+
+\textbf{member\_health\_profiles} \newline (hồ\_sơ\_sức\_khỏe) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{user\_id} (FK → \texttt{users.id}, duy nhất): Thành viên (quan hệ 1–1).
+    \item \texttt{date\_of\_birth} (date, null): Ngày sinh.
+    \item \texttt{gender} (text, null): Giới tính.
+    \item \texttt{height\_cm} (numeric(5,2), null): Chiều cao (cm).
+    \item \texttt{primary\_goal} (text, null): Mục tiêu — \texttt{'weight\_loss'}, \texttt{'muscle\_gain'}, \texttt{'maintenance'}.
+    \item \texttt{medical\_conditions} (text, null): Bệnh lý nền.
+    \item \texttt{target\_weight\_kg} (numeric(5,2), null): Cân nặng mục tiêu (kg).
+    \item \texttt{food\_allergies} (text, null): Dị ứng thực phẩm.
+    \item \texttt{activity\_level} (text, null): Mức độ vận động nền — \texttt{'sedentary'}, \texttt{'lightly\_active'}, \texttt{'moderately\_active'}, \texttt{'very\_active'}.
+    \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
+\end{itemize} \\ \hline
+
+\textbf{member\_weight\_logs} \newline (nhật\_ký\_cân\_nặng) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{user\_id} (FK → \texttt{users.id}): Thành viên.
+    \item \texttt{weight\_kg} (numeric(5,2)): Cân nặng đo được (kg).
+    \item \texttt{measured\_at} (timestamptz): Thời điểm đo.
+    \item \texttt{measurement\_source} (text): Nguồn đo — \texttt{'manual'}, \texttt{'inbody'}, \texttt{'scale'}.
+    \item \texttt{device\_id} (text, null): Mã thiết bị đo.
+    \item \texttt{note} (text, null): Ghi chú.
+    \item \texttt{created\_by} (FK → \texttt{users.id}): Người nhập liệu.
+    \item \texttt{created\_at} (timestamptz): Thời gian tạo.
+\end{itemize} \\ \hline
+
+\textbf{member\_body\_measurements} \newline (số\_đo\_cơ\_thể) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{user\_id} (FK → \texttt{users.id}): Thành viên.
+    \item \texttt{measurement\_type} (text): Loại đo — \texttt{'waist'}, \texttt{'chest'}, \texttt{'hips'}, \texttt{'body\_fat\_percentage'}, v.v.
+    \item \texttt{value} (numeric(6,2)): Giá trị đo được.
+    \item \texttt{unit} (text): Đơn vị — \texttt{'cm'}, \texttt{'\%'}, \texttt{'kg'}.
+    \item \texttt{measured\_at} (timestamptz): Thời điểm đo thực tế.
+    \item \texttt{measurement\_source} (text): Nguồn đo.
+    \item \texttt{shift\_id} (FK → \texttt{shifts.id}, null): Ca tập liên quan; dùng để khóa số đo sau ca.
+    \item \texttt{is\_locked} (bool, mặc định false): Bị khóa sau khi ca kết thúc.
+    \item \texttt{locked\_at} (timestamptz, null): Thời điểm khóa.
+    \item \texttt{created\_by} (FK → \texttt{users.id}): Người nhập liệu.
+    \item \texttt{created\_at} (timestamptz): Thời gian tạo.
+\end{itemize} \\ \hline
+
+% =========================================
+% NHÓM 11: ĐÁNH GIÁ & HỖ TRỢ
+% =========================================
+
+\multicolumn{2}{|l|}{\textbf{Nhóm 11: Đánh giá và hỗ trợ thành viên}} \\ \hline
+
+\textbf{reviews} \newline (đánh\_giá) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{reviewer\_id} (FK → \texttt{users.id}): Người đánh giá.
+    \item \texttt{target\_type} (text): Loại đối tượng — \texttt{'shift'}, \texttt{'coach'}, \texttt{'equipment'}, \texttt{'exercise'}.
+    \item \texttt{target\_id} (text): Mã định danh của đối tượng được đánh giá.
+    \item \texttt{rating} (int): Điểm từ 1 đến 5 (ràng buộc CHECK).
+    \item \texttt{comment} (text, null): Nhận xét.
+    \item \texttt{tags} (jsonb, mặc định \texttt{'[]'}): Nhãn phân loại đánh giá.
+    \item \texttt{status} (text, mặc định \texttt{'visible'}): Trạng thái kiểm duyệt — \texttt{'visible'}, \texttt{'flagged'}, \texttt{'hidden'}.
+    \item \texttt{branch\_id} (FK → \texttt{branches.id}, null): Chi nhánh liên quan.
+    \item \texttt{attendance\_id} (FK → \texttt{class\_attendance.id}, null): Buổi điểm danh liên quan.
+    \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
+\end{itemize} \\ \hline
+
+\textbf{review\_moderation\_logs} \newline (nhật\_ký\_kiểm\_duyệt) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{review\_id} (FK → \texttt{reviews.id}): Đánh giá bị kiểm duyệt.
+    \item \texttt{actor\_id} (FK → \texttt{users.id}): Người kiểm duyệt.
+    \item \texttt{from\_status} (text): Trạng thái cũ.
+    \item \texttt{to\_status} (text): Trạng thái mới.
+    \item \texttt{reason} (text): Lý do kiểm duyệt (bắt buộc nhập).
+    \item \texttt{created\_at} (timestamptz): Thời điểm thực hiện.
+\end{itemize} \\ \hline
+
+\textbf{support\_requests} \newline (yêu\_cầu\_hỗ\_trợ) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{member\_id} (FK → \texttt{users.id}): Thành viên gửi yêu cầu.
+    \item \texttt{shift\_id} (FK → \texttt{shifts.id}, null): Ca tập liên quan (nếu có).
+    \item \texttt{branch\_id} (FK → \texttt{branches.id}): Chi nhánh xử lý.
+    \item \texttt{reason} (text, null): Nội dung yêu cầu.
+    \item \texttt{status} (text, mặc định \texttt{'open'}): Trạng thái — \texttt{'open'}, \texttt{'resolved'}.
+    \item \texttt{resolved\_by} (FK → \texttt{users.id}, null): Nhân viên xử lý.
+    \item \texttt{resolved\_at} (timestamptz, null): Thời điểm giải quyết.
+    \item \texttt{created\_at} (timestamptz): Thời điểm gửi yêu cầu.
+\end{itemize} \\ \hline
+
+% =========================================
+% NHÓM 12: CƠ SỞ VẬT CHẤT
+% =========================================
+
+\multicolumn{2}{|l|}{\textbf{Nhóm 12: Quản lý cơ sở vật chất}} \\ \hline
+
+\textbf{areas} \newline (khu\_vực) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{branch\_id} (FK → \texttt{branches.id}): Chi nhánh chứa khu vực.
+    \item \texttt{name} (text): Tên khu vực (ví dụ: Phòng Cardio, Phòng Tạ Tự Do).
+    \item \texttt{description} (text, null): Mô tả.
+    \item \texttt{is\_active} (bool): Đang hoạt động hay không.
+    \item \texttt{created\_by} (FK → \texttt{users.id}): Người tạo.
+    \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
+\end{itemize} \\ \hline
+
+\textbf{assets} \newline (tài\_sản) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{branch\_id} (FK → \texttt{branches.id}): Chi nhánh sở hữu.
+    \item \texttt{area\_id} (FK → \texttt{areas.id}, null): Khu vực đặt tài sản.
+    \item \texttt{asset\_code} (text, duy nhất): Mã tài sản.
+    \item \texttt{name} (text): Tên thiết bị/tài sản.
+    \item \texttt{asset\_type} (text): Loại tài sản (máy tập, thiết bị âm thanh, v.v.).
+    \item \texttt{purchase\_date} (date, null): Ngày mua.
+    \item \texttt{purchase\_price} (bigint, null): Giá mua (VNĐ).
+    \item \texttt{status} (text, mặc định \texttt{'ACTIVE'}): Trạng thái — \texttt{'ACTIVE'}, \texttt{'MAINTENANCE'}, \texttt{'RETIRED'}.
+    \item \texttt{notes} (text, null): Ghi chú.
+    \item \texttt{created\_by} (FK → \texttt{users.id}): Người tạo.
+    \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
+\end{itemize} \\ \hline
+
+\textbf{maintenance\_tickets} \newline (phiếu\_bảo\_trì) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{asset\_id} (FK → \texttt{assets.id}): Tài sản cần bảo trì.
+    \item \texttt{branch\_id} (FK → \texttt{branches.id}): Chi nhánh.
+    \item \texttt{title} (text): Tiêu đề vấn đề.
+    \item \texttt{description} (text, null): Mô tả chi tiết.
+    \item \texttt{status} (text, mặc định \texttt{'OPEN'}): Trạng thái — \texttt{'OPEN'}, \texttt{'IN\_PROGRESS'}, \texttt{'RESOLVED'}, \texttt{'CLOSED'}.
+    \item \texttt{reported\_by} (FK → \texttt{users.id}): Người báo cáo sự cố.
+    \item \texttt{assigned\_to} (FK → \texttt{users.id}, null): Kỹ thuật viên được giao.
+    \item \texttt{resolved\_at} (timestamptz, null): Thời điểm hoàn thành xử lý.
+    \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
+\end{itemize} \\ \hline
+
+\textbf{maintenance\_schedules} \newline (lịch\_bảo\_trì\_định\_kỳ) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{branch\_id} (FK → \texttt{branches.id}): Chi nhánh.
+    \item \texttt{asset\_id} (FK → \texttt{assets.id}, null): Tài sản cụ thể; null nếu là lịch bảo trì tổng thể.
+    \item \texttt{title} (text): Tên lịch bảo trì.
+    \item \texttt{description} (text, null): Mô tả nội dung.
+    \item \texttt{frequency} (text): Tần suất — \texttt{'daily'}, \texttt{'weekly'}, \texttt{'monthly'}, \texttt{'quarterly'}, \texttt{'yearly'}, \texttt{'once'}.
+    \item \texttt{interval\_days} (int): Chu kỳ tính theo số ngày.
+    \item \texttt{next\_due\_at} (timestamptz): Lần bảo trì tiếp theo.
+    \item \texttt{last\_run\_at} (timestamptz, null): Lần thực hiện gần nhất.
+    \item \texttt{is\_active} (bool): Còn hiệu lực hay không.
+    \item \texttt{created\_by} (FK → \texttt{users.id}): Người tạo lịch.
+    \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
+\end{itemize} \\ \hline
+
+\textbf{maintenance\_schedule\_runs} \newline (lịch\_sử\_chạy\_bảo\_trì) &
+\begin{itemize}
+    \item \texttt{id} (text, khóa chính).
+    \item \texttt{schedule\_id} (FK → \texttt{maintenance\_schedules.id}): Lịch bảo trì gốc.
+    \item \texttt{ticket\_id} (FK → \texttt{maintenance\_tickets.id}, null): Phiếu bảo trì được tạo trong lần này.
+    \item \texttt{triggered\_at} (timestamptz): Thời điểm kích hoạt.
+    \item \texttt{triggered\_by} (FK → \texttt{users.id}, null): Người kích hoạt; null nếu hệ thống tự động.
+\end{itemize} \\ \hline
+
+% =========================================
+% NHÓM 13: CẤU HÌNH HỆ THỐNG
+% =========================================
+
+\multicolumn{2}{|l|}{\textbf{Nhóm 13: Cấu hình hệ thống}} \\ \hline
+
+\textbf{system\_config} \newline (cấu\_hình\_hệ\_thống) &
+\begin{itemize}
+    \item \texttt{key} (text, khóa chính): Tên tham số cấu hình (ví dụ: \texttt{'checkin\_window\_minutes'}).
+    \item \texttt{value} (text): Giá trị tham số.
+    \item \texttt{description} (text, null): Mô tả ý nghĩa tham số.
+    \item \texttt{updated\_by} (FK → \texttt{users.id}, null): Người cập nhật gần nhất.
+    \item \texttt{updated\_at} (timestamptz): Thời điểm cập nhật.
+\end{itemize} \\ \hline
+
+\end{longtable}
+\endgroup
+
+\vspace{0.5cm}
+\textit{Ghi chú:} Các bảng hạ tầng xác thực (\texttt{refresh\_sessions}, \texttt{password\_reset\_tokens}), bảng kiểm toán (\texttt{audit\_logs}, \texttt{security\_events}), và các bảng dinh dưỡng AI (Giai đoạn 2) không được liệt kê vì không thuộc thực thể nghiệp vụ cốt lõi của Giai đoạn 1.
+
+
+\section{Mối quan hệ giữa các thực thể}
+
+\subsection*{Nhóm người dùng và phân quyền}
+\begin{itemize}
+    \item \textbf{users – profiles}: Một–một (1:1). Mỗi tài khoản có tối đa một hồ sơ cá nhân.
+    \item \textbf{users – user\_role\_assignments}: Một–nhiều (1:N). Một người dùng có thể được gán nhiều vai trò ở các chi nhánh khác nhau.
+    \item \textbf{roles – user\_role\_assignments}: Một–nhiều (1:N). Một vai trò có thể được gán cho nhiều người dùng.
+\end{itemize}
+
+\subsection*{Nhóm tổ chức và chi nhánh}
+\begin{itemize}
+    \item \textbf{organizations – branches}: Một–nhiều (1:N). Một tổ chức có nhiều chi nhánh.
+    \item \textbf{branches – branch\_manager\_assignments}: Một–nhiều (1:N). Một chi nhánh có nhiều đợt phân công quản lý theo thời gian.
+    \item \textbf{users – branch\_manager\_assignments}: Một–nhiều (1:N). Một người dùng có thể quản lý nhiều chi nhánh ở các thời điểm khác nhau.
+\end{itemize}
+
+\subsection*{Nhóm gói tập hội viên (theo thời gian)}
+\begin{itemize}
+    \item \textbf{users – subscriptions}: Một–nhiều (1:N). Một thành viên có thể có nhiều đăng ký kế tiếp nhau.
+    \item \textbf{membership\_plans – subscriptions}: Một–nhiều (1:N). Một gói tập có thể được nhiều thành viên đăng ký.
+    \item \textbf{subscriptions – subscription\_status\_history}: Một–nhiều (1:N). Mỗi đăng ký lưu lịch sử các lần đổi trạng thái.
+    \item \textbf{subscriptions – member\_check\_ins}: Một–nhiều (1:N). Mỗi đăng ký có nhiều lần check-in thực tế.
+\end{itemize}
+
+\subsection*{Nhóm gói tập theo buổi (khóa học)}
+\begin{itemize}
+    \item \textbf{course\_packages – course\_enrollments}: Một–nhiều (1:N). Một gói (30 buổi, 60 buổi) có thể được nhiều học viên đăng ký.
+    \item \textbf{users – course\_enrollments}: Một–nhiều (1:N). Một học viên có thể đăng ký nhiều khóa học (ràng buộc ứng dụng: chỉ một đăng ký \texttt{ACTIVE} tại một thời điểm).
+    \item \textbf{course\_enrollments – class\_attendance}: Một–nhiều (1:N). Mỗi lượt điểm danh làm giảm số buổi còn lại của đăng ký.
+\end{itemize}
+
+\subsection*{Nhóm ca tập và phân công huấn luyện viên}
+\begin{itemize}
+    \item \textbf{branches – shifts}: Một–nhiều (1:N). Mỗi chi nhánh có nhiều ca tập theo lịch.
+    \item \textbf{shifts – trainer\_assignments}: Một–nhiều (1:N, tối đa 3). Một ca tập có tối đa 3 HLV được phân công; ràng buộc duy nhất ngăn phân công trùng.
+    \item \textbf{users (HLV) – trainer\_assignments}: Một–nhiều (1:N). Một HLV có thể được phân công nhiều ca.
+    \item \textbf{shifts – class\_attendance}: Một–nhiều (1:N). Một ca tập có nhiều bản ghi điểm danh học viên.
+    \item \textbf{shifts – member\_body\_measurements}: Một–nhiều (1:N). Ca tập được liên kết để khóa số đo sau khi ca kết thúc.
+\end{itemize}
+
+\subsection*{Nhóm tập thử và chuyển đổi}
+\begin{itemize}
+    \item \textbf{branches – trial\_bookings}: Một–nhiều (1:N). Mỗi chi nhánh có nhiều lịch tập thử.
+    \item \textbf{trial\_bookings – trial\_status\_history}: Một–nhiều (1:N). Mỗi lịch tập thử lưu lịch sử các lần đổi trạng thái.
+    \item \textbf{trial\_bookings – subscriptions}: Một–một (1:1, tùy chọn). Khi khách tập thử chuyển thành hội viên, trường \texttt{converted\_subscription\_id} sẽ liên kết đến đăng ký mới.
+\end{itemize}
+
+\subsection*{Nhóm huấn luyện viên riêng (PT)}
+\begin{itemize}
+    \item \textbf{pt\_packages – pt\_sessions}: Một–nhiều (1:N). Một gói PT được sử dụng cho nhiều buổi tập.
+    \item \textbf{users (học viên) – pt\_sessions}: Một–nhiều (1:N). Một học viên có nhiều buổi PT.
+    \item \textbf{users (HLV) – pt\_sessions}: Một–nhiều (1:N). Một HLV dạy nhiều buổi PT cho nhiều học viên.
+\end{itemize}
+
+\subsection*{Nhóm thanh toán và hóa đơn}
+\begin{itemize}
+    \item \textbf{users – invoices}: Một–nhiều (1:N). Một thành viên có nhiều hóa đơn.
+    \item \textbf{branches – invoices}: Một–nhiều (1:N). Mỗi chi nhánh xuất nhiều hóa đơn.
+    \item \textbf{invoices – payments}: Một–nhiều (1:N). Một hóa đơn có thể được thanh toán nhiều lần (thanh toán từng phần hoặc thanh toán lại sau thất bại).
+    \item \textbf{invoices – refunds}: Một–nhiều (1:N). Một hóa đơn có thể phát sinh yêu cầu hoàn tiền.
+    \item \textbf{promotions – invoices}: Một–nhiều (1:N). Một mã khuyến mãi được áp dụng cho nhiều hóa đơn.
+\end{itemize}
+
+\subsection*{Nhóm sức khỏe và chỉ số}
+\begin{itemize}
+    \item \textbf{users – member\_health\_profiles}: Một–một (1:1). Mỗi thành viên có một hồ sơ sức khỏe.
+    \item \textbf{users – member\_weight\_logs}: Một–nhiều (1:N). Mỗi thành viên có nhiều bản ghi cân nặng theo thời gian.
+    \item \textbf{users – member\_body\_measurements}: Một–nhiều (1:N). Mỗi thành viên có nhiều bản ghi số đo cơ thể.
+\end{itemize}
+
+\subsection*{Nhóm đánh giá và hỗ trợ}
+\begin{itemize}
+    \item \textbf{users – reviews}: Một–nhiều (1:N). Một thành viên có thể gửi nhiều đánh giá; ràng buộc duy nhất ngăn đánh giá trùng một ca tập.
+    \item \textbf{reviews – review\_moderation\_logs}: Một–nhiều (1:N). Mỗi đánh giá có lịch sử kiểm duyệt.
+    \item \textbf{users – support\_requests}: Một–nhiều (1:N). Một thành viên có thể gửi nhiều yêu cầu hỗ trợ.
+\end{itemize}
+
+\subsection*{Nhóm cơ sở vật chất}
+\begin{itemize}
+    \item \textbf{branches – areas}: Một–nhiều (1:N). Một chi nhánh có nhiều khu vực.
+    \item \textbf{areas – assets}: Một–nhiều (1:N). Một khu vực chứa nhiều tài sản.
+    \item \textbf{assets – maintenance\_tickets}: Một–nhiều (1:N). Một tài sản có thể có nhiều phiếu bảo trì theo thời gian.
+    \item \textbf{assets – maintenance\_schedules}: Một–nhiều (1:N). Một tài sản có thể có nhiều lịch bảo trì định kỳ.
+    \item \textbf{maintenance\_schedules – maintenance\_schedule\_runs}: Một–nhiều (1:N). Mỗi lần lịch đến hạn tạo một bản ghi chạy và (tùy chọn) một phiếu bảo trì mới.
+\end{itemize}
+
+\subsection*{Tóm tắt các loại quan hệ chính}
+\begin{itemize}
+    \item \textbf{Một–một (1:1)}: \texttt{users – profiles}, \texttt{users – staff\_profiles}, \texttt{users – member\_health\_profiles}.
+    \item \textbf{Một–nhiều (1:N)}: hầu hết các quan hệ còn lại (chi nhánh – ca tập, người dùng – đăng ký, hóa đơn – thanh toán, tài sản – phiếu bảo trì, \ldots).
+    \item \textbf{Nhiều–nhiều (N:N)} qua bảng trung gian:
+        \begin{itemize}
+            \item \texttt{users} (HLV) – \texttt{shifts} thông qua \texttt{trainer\_assignments}.
+            \item \texttt{users} – \texttt{roles} thông qua \texttt{user\_role\_assignments}.
+        \end{itemize}
+\end{itemize}

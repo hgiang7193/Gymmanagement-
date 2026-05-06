@@ -1,0 +1,126 @@
+@startuml CD1
+skinparam classAttributeIconSize 0
+skinparam defaultFontSize 12
+skinparam classFontStyle bold
+skinparam class {
+  BackgroundColor #EEF4FF
+  BorderColor     #4060A0
+  ArrowColor      #404040
+  HeaderBackgroundColor #C0CFEE
+}
+skinparam enum {
+  BackgroundColor #FFF8EE
+  BorderColor     #A06020
+  HeaderBackgroundColor #FFE4AA
+}
+skinparam shadowing false
+hide empty methods
+
+' ── Enumerations ────────────────────────────────────────────
+enum UserStatus << enumeration >> {
+  ACTIVE
+  INACTIVE
+  PENDING_PASSWORD_RESET
+}
+
+enum Role << enumeration >> {
+  GUEST
+  MEMBER
+  COACH
+  MANAGER
+  ADMIN
+}
+
+' ── Entities ────────────────────────────────────────────────
+class User << entity >> {
+  + id              : UUID
+  + email           : String
+  + password_hash   : String
+  + status          : UserStatus
+  + created_at      : Timestamp
+  + updated_at      : Timestamp
+}
+
+class Profile << entity >> {
+  + id             : UUID
+  + user_id        : UUID
+  + full_name      : String
+  + phone          : String
+  + avatar_url     : String
+  + date_of_birth  : Date
+}
+
+class StaffProfile << entity >> {
+  + id                  : UUID
+  + user_id             : UUID
+  + employee_code       : String
+  + primary_branch_id   : UUID
+  + hire_date           : Date
+}
+
+class UserRoleAssignment << entity >> {
+  + id           : UUID
+  + user_id      : UUID
+  + role         : Role
+  + assigned_at  : Timestamp
+  + assigned_by  : UUID
+}
+
+class RefreshSession << entity >> {
+  + id          : UUID
+  + user_id     : UUID
+  + token_hash  : String
+  + expires_at  : Timestamp
+  + revoked     : Boolean
+}
+
+class PasswordResetToken << entity >> {
+  + id          : UUID
+  + user_id     : UUID
+  + token_hash  : String
+  + expires_at  : Timestamp
+  + used        : Boolean
+}
+
+class Branch << entity >> {
+  + id          : UUID
+  + name        : String
+  + address     : String
+  + open_time   : Time
+  + close_time  : Time
+  + zalo_link   : String
+  + status      : String
+}
+
+class BranchManagerAssignment << entity >> {
+  + id           : UUID
+  + manager_id   : UUID
+  + branch_id    : UUID
+  + assigned_at  : Timestamp
+}
+
+class AuditLog << entity >> {
+  + id           : UUID
+  + actor_id     : UUID
+  + event_type   : String
+  + entity_type  : String
+  + entity_id    : UUID
+  + payload      : JSON
+  + created_at   : Timestamp
+}
+
+' ── Relationships ────────────────────────────────────────────
+User           "1" *-right- "1"    Profile               : "composition >"
+User           "1" *-down-  "0..1" StaffProfile          : "composition >"
+User           "1" *-left-  "0..*" UserRoleAssignment    : "composition >"
+User           "1" *-up-    "0..*" RefreshSession        : "composition >"
+User           "1" *--      "0..*" PasswordResetToken    : "composition >"
+
+User           "1" --       "0..*" BranchManagerAssignment
+Branch         "1" --       "0..*" BranchManagerAssignment
+StaffProfile   "  *" -->    "1  "  Branch                : "primary branch >"
+
+User           ..>                 UserStatus            : uses
+UserRoleAssignment ..>             Role                  : uses
+
+@enduml

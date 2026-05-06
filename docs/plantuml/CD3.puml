@@ -1,0 +1,227 @@
+@startuml CD3
+skinparam classAttributeIconSize 0
+skinparam defaultFontSize 12
+skinparam classFontStyle bold
+skinparam class {
+  BackgroundColor #EEF4FF
+  BorderColor     #4060A0
+  ArrowColor      #404040
+  HeaderBackgroundColor #C0CFEE
+}
+skinparam enum {
+  BackgroundColor #FFF8EE
+  BorderColor     #A06020
+  HeaderBackgroundColor #FFE4AA
+}
+skinparam shadowing false
+hide empty methods
+
+' ── Enumerations ─────────────────────────────────────────────
+enum ShiftStatus << enumeration >> {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum OverrideActor << enumeration >> {
+  coach
+  manager
+}
+
+enum InvoiceStatus << enumeration >> {
+  pending
+  paid
+  cancelled
+  refunded
+}
+
+enum PaymentMethod << enumeration >> {
+  cash
+  transfer
+  card
+}
+
+enum ReviewTargetType << enumeration >> {
+  shift
+  coach
+  equipment
+  exercise
+}
+
+enum ReviewStatus << enumeration >> {
+  visible
+  flagged
+  hidden
+}
+
+enum AssetStatus << enumeration >> {
+  ACTIVE
+  MAINTENANCE
+  BROKEN
+  RETIRED
+}
+
+' ── External references (simplified) ─────────────────────────
+class Branch << entity >> {
+  + id : UUID
+}
+
+class Subscription << entity >> {
+  + id     : UUID
+  + status : String
+}
+
+' ── Session entities ─────────────────────────────────────────
+class Shift << entity >> {
+  + id                    : UUID
+  + branch_id             : UUID
+  + start_time            : Timestamp
+  + end_time              : Timestamp
+  + capacity              : Integer
+  + trainer_slots_needed  : Integer
+  + status                : ShiftStatus
+}
+
+class TrainerAssignment << entity >> {
+  + id            : UUID
+  + coach_id      : UUID
+  + shift_id      : UUID
+  + assigned_at   : Timestamp
+  + cancelled_at  : Timestamp
+}
+
+class ClassAttendance << entity >> {
+  + id               : UUID
+  + member_id        : UUID
+  + shift_id         : UUID
+  + subscription_id  : UUID
+  + checkin_time     : Timestamp
+  + proxy_checkin    : Boolean
+  + override_actor   : OverrideActor
+  + override_reason  : String
+}
+
+class MemberWeightLog << entity >> {
+  + id            : UUID
+  + member_id     : UUID
+  + attendance_id : UUID
+  + shift_id      : UUID
+  + weight_kg     : Decimal
+  + recorded_at   : Timestamp
+}
+
+' ── Finance entities ─────────────────────────────────────────
+class Invoice << entity >> {
+  + id              : UUID
+  + member_id       : UUID
+  + manager_id      : UUID
+  + branch_id       : UUID
+  + total_amount    : Decimal
+  + status          : InvoiceStatus
+  + created_at      : Timestamp
+}
+
+class InvoiceLineItem << entity >> {
+  + id              : UUID
+  + invoice_id      : UUID
+  + name_snapshot   : String
+  + price_snapshot  : Decimal
+  + quantity        : Integer
+}
+
+class Payment << entity >> {
+  + id          : UUID
+  + invoice_id  : UUID
+  + method      : PaymentMethod
+  + amount      : Decimal
+  + paid_at     : Timestamp
+}
+
+class Refund << entity >> {
+  + id             : UUID
+  + invoice_id     : UUID
+  + manager_id     : UUID
+  + amount         : Decimal
+  + reason         : String
+  + refunded_at    : Timestamp
+}
+
+' ── Review entities ───────────────────────────────────────────
+class Review << entity >> {
+  + id           : UUID
+  + member_id    : UUID
+  + target_type  : ReviewTargetType
+  + target_id    : UUID
+  + rating       : Integer
+  + comment      : Text
+  + tags         : String[]
+  + status       : ReviewStatus
+  + created_at   : Timestamp
+}
+
+class ReviewModerationLog << entity >> {
+  + id             : UUID
+  + review_id      : UUID
+  + moderator_id   : UUID
+  + old_status     : ReviewStatus
+  + new_status     : ReviewStatus
+  + reason         : String
+  + moderated_at   : Timestamp
+}
+
+' ── Equipment ─────────────────────────────────────────────────
+class EquipmentType << entity >> {
+  + id          : UUID
+  + branch_id   : UUID
+  + name        : String
+  + quantity    : Integer
+  + status      : AssetStatus
+  + updated_at  : Timestamp
+}
+
+' ── Relationships ─────────────────────────────────────────────
+' Session
+Branch          "1" *-down-  "0..*" Shift                 : "composition >"
+Shift           "1" *-right- "0..*" TrainerAssignment     : "composition >"
+Shift           "1" *-down-  "0..*" ClassAttendance       : "composition >"
+ClassAttendance "1" *-right- "0..1" MemberWeightLog       : "atomic tx >"
+
+' Finance
+Invoice         "1" *-right- "1..*" InvoiceLineItem       : "composition >"
+Invoice         "1" *-down-  "0..*" Payment               : "composition >"
+Invoice         "1" --       "0..1" Refund
+Invoice         "  " ..>     "  "   Subscription          : "activates after paid >"
+
+' Review
+Review          "1" *-right- "0..*" ReviewModerationLog   : "composition >"
+
+' Equipment
+Branch          "1" *-up-    "0..*" EquipmentType         : "composition >"
+
+' Enum usage
+Shift               ..> ShiftStatus
+ClassAttendance     ..> OverrideActor
+Invoice             ..> InvoiceStatus
+Payment             ..> PaymentMethod
+Review              ..> ReviewTargetType
+Review              ..> ReviewStatus
+EquipmentType       ..> AssetStatus
+
+note on link
+  price_snapshot = snapshot
+  tại thời điểm lập hóa đơn
+end note
+
+note right of ClassAttendance
+  override_actor là enum, không phải FK
+  để tránh đường FK mơ hồ với User
+end note
+
+note right of Review
+  Polymorphic target:
+  target_type + target_id thay vì
+  4 bảng join riêng
+end note
+
+@enduml

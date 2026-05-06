@@ -2,7 +2,7 @@
 
 > **Phiên bản:** 2.0 — 2026-05-01
 > **Trạng thái:** MVP scope
-> **Ghi chú:** Bản này gộp lại từ phiên bản 1.0 (~40 UC) thành **18 UC** theo các nguyên tắc bên dưới. Các UC bị tách quá nhỏ (CRUD, view dashboard, review theo từng target_type, các sub-flow của facility) đã được hợp nhất.
+> **Ghi chú:** Bản này gộp lại từ phiên bản 1.0 (~40 UC) thành **19 UC** theo các nguyên tắc bên dưới. Các UC bị tách quá nhỏ (CRUD, view dashboard, review theo từng target_type, các sub-flow của facility) đã được hợp nhất.
 
 ---
 
@@ -33,14 +33,14 @@
 - **Manager** — Quản lý chi nhánh
 - **Admin** — Quản trị toàn hệ thống (kế thừa toàn bộ quyền Manager trên mọi branch)
 
-**Tổng quan 18 UC:**
+**Tổng quan 19 UC:**
 
 | Nhóm | UC |
 |---|---|
 | Auth (3) | UC-AUTH-01 Đăng ký · UC-AUTH-02 Đăng nhập/Đăng xuất · UC-AUTH-03 Khôi phục mật khẩu |
 | Guest (2) | UC-GUEST-01 Tìm hiểu gói · UC-GUEST-02 Đăng ký + theo dõi trial |
 | Member (4) | UC-MEMBER-01 Check-in + sinh trắc · UC-MEMBER-02 Hồ sơ cá nhân · UC-MEMBER-03 Hồ sơ sức khoẻ · UC-MEMBER-04 Đánh giá dịch vụ |
-| Coach (2) | UC-COACH-01 Quản lý ca làm việc · UC-COACH-02 Hỗ trợ check-in lỗi |
+| Coach (3) | UC-COACH-01 Đăng ký / Huỷ ca làm việc · UC-COACH-02 Quản lý ca đang dạy · UC-COACH-03 Hỗ trợ check-in lỗi |
 | Manager (7) | UC-MGR-01 POS · UC-MGR-02 Hủy/hoàn tiền · UC-MGR-03 Catalog gói/KM · UC-MGR-04 Override check-in · UC-MGR-05 Quản lý thiết bị · UC-MGR-06 Kiểm duyệt review · UC-MGR-07 Báo cáo vận hành |
 | Admin (2) | UC-ADMIN-01 Quản lý chi nhánh · UC-ADMIN-02 Quản lý người dùng & phân quyền |
 
@@ -265,41 +265,62 @@
 
 ## IV. Huấn luyện viên (Coach)
 
-### UC-COACH-01 — Quản lý ca làm việc của HLV
+### UC-COACH-01 — Đăng ký / Huỷ ca làm việc
 
 | Trường | Nội dung |
 |--------|---------|
-| **Mục đích** | HLV tự đăng ký các ca trống tại branch của mình và chạy các ca đã đăng ký (xem lịch, roster, thông tin học viên). **Gộp toàn bộ vòng đời ca từ phía HLV** — đăng ký + chạy ca. Manager KHÔNG phân ca cho HLV trong mô hình này; HLV chủ động chọn lịch làm việc |
+| **Mục đích** | HLV tự đăng ký vào các ca còn slot và chủ động huỷ nếu cần — kiểm soát lịch làm việc của bản thân mà không phụ thuộc Manager phân ca |
 | **Tác nhân** | Coach |
 
-**[ĐK]** Đã đăng nhập, thuộc branch có ca, ca chưa đủ HLV (cho đăng ký).
+**[ĐK]** Coach thuộc branch có ca; ca chưa đủ HLV (cho luồng đăng ký).
 
 **[KT]**
 - *Đăng ký:* `trainer_assignments` được tạo, audit `coach_self_assigned`.
-- *Chạy ca:* HLV thấy lịch, roster real-time và thông tin tối thiểu của từng học viên (least privilege).
+- *Huỷ:* `cancelled_at` được ghi, audit cập nhật.
 
 **Luồng chính:**
 
 **(a) Đăng ký ca:**
-1. HLV mở "Ca trống" → thấy các ca chưa đủ HLV trong branch và khoảng thời gian.
+1. HLV mở "Ca trống" → hệ thống hiển thị danh sách ca chưa đủ HLV trong branch và khoảng thời gian.
 2. Chọn ca, xác nhận.
-3. Hệ thống validate (không trùng giờ với ca đã nhận, còn slot HLV) → tạo assignment.
-4. HLV có thể tự huỷ assignment trước khi ca bắt đầu.
+3. Hệ thống validate không trùng giờ và còn slot HLV → tạo `trainer_assignments`.
 
-**(b) Chạy ca:**
-1. HLV mở màn hình chính → hệ thống lấy ca theo ngày từ `trainer_assignments`.
-2. Chọn ca → hiển thị roster real-time (`class_attendance`): tổng check-in, tên, giờ, sinh trắc.
-3. Click học viên → hiển thị tên, ảnh, cân nặng hôm nay, số buổi còn lại.
+**(b) Huỷ ca:**
+1. HLV mở danh sách ca đã đăng ký.
+2. Chọn ca muốn huỷ → hệ thống kiểm tra ca chưa bắt đầu.
+3. Ghi `cancelled_at`.
 
 **[NL]:**
 - Đăng ký ca trùng giờ → `SHIFT_TIME_OVERLAP`.
 - Ca đã đủ HLV → `SHIFT_FULL`.
-- Huỷ ca sau khi đã bắt đầu → `SHIFT_ALREADY_STARTED`.
-- Truy cập ca không cùng branch → `FORBIDDEN`.
+- Huỷ sau khi ca đã bắt đầu → `SHIFT_ALREADY_STARTED`.
+- Truy cập ca ngoài branch → `FORBIDDEN`.
 
 ---
 
-### UC-COACH-02 — Hỗ trợ học viên check-in lỗi
+### UC-COACH-02 — Quản lý ca đang dạy
+
+| Trường | Nội dung |
+|--------|---------|
+| **Mục đích** | HLV theo dõi lịch làm việc theo ngày và xem thông tin học viên real-time trong ca đang diễn ra, phục vụ hỗ trợ tập luyện |
+| **Tác nhân** | Coach đã được phân công ca (`trainer_assignments` active) |
+
+**[ĐK]** Tồn tại ít nhất 1 `trainer_assignments` active của Coach trong ngày.
+
+**[KT]** HLV thấy danh sách ca theo ngày; trong từng ca thấy roster real-time và chi tiết tối thiểu của từng học viên (least privilege).
+
+**Luồng chính:**
+1. HLV mở màn hình chính → hệ thống lấy danh sách ca theo ngày từ `trainer_assignments`.
+2. HLV chọn 1 ca → hiển thị roster real-time từ `class_attendance`: tổng check-in, tên, giờ check-in, sinh trắc hôm nay.
+3. HLV click vào 1 học viên → hiển thị chi tiết: tên, ảnh, cân nặng hôm nay, số buổi còn lại.
+
+**[NL]:**
+- Truy cập ca không thuộc assignment của Coach → `FORBIDDEN`.
+- Ca chưa có học viên check-in → hiển thị roster rỗng.
+
+---
+
+### UC-COACH-03 — Hỗ trợ học viên check-in lỗi
 
 | Trường | Nội dung |
 |--------|---------|
@@ -405,7 +426,7 @@
 
 | Trường | Nội dung |
 |--------|---------|
-| **Mục đích** | Đảm bảo dữ liệu attendance chính xác khi member không tự check-in được. Phân biệt với UC-COACH-02: manager có thẩm quyền rộng hơn (grace period, mọi ca trong branch) |
+| **Mục đích** | Đảm bảo dữ liệu attendance chính xác khi member không tự check-in được. Phân biệt với UC-COACH-03: manager có thẩm quyền rộng hơn (grace period, mọi ca trong branch) |
 | **Tác nhân** | Manager (branch scope) |
 
 **[ĐK]** Manager thuộc branch của ca; member có mặt thực tế; có lý do hợp lệ.
@@ -413,7 +434,7 @@
 **[KT]** `class_attendance` với `override = true`, `override_actor = manager`, `override_reason`; audit `attendance_override`.
 
 **Luồng chính:**
-1. Manager nhận thông báo từ member (UC-MEMBER-01) hoặc HLV (UC-COACH-02).
+1. Manager nhận thông báo từ member (UC-MEMBER-01) hoặc HLV (UC-COACH-03).
 2. Xác minh danh tính + tình trạng có mặt.
 3. Chọn member + ca, nhập lý do bắt buộc.
 4. Transaction tạo attendance + audit.

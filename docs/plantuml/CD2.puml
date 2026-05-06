@@ -1,0 +1,139 @@
+@startuml CD2
+skinparam classAttributeIconSize 0
+skinparam defaultFontSize 12
+skinparam classFontStyle bold
+skinparam class {
+  BackgroundColor #EEF4FF
+  BorderColor     #4060A0
+  ArrowColor      #404040
+  HeaderBackgroundColor #C0CFEE
+}
+skinparam enum {
+  BackgroundColor #FFF8EE
+  BorderColor     #A06020
+  HeaderBackgroundColor #FFE4AA
+}
+skinparam shadowing false
+hide empty methods
+
+' ── Enumerations ─────────────────────────────────────────────
+enum PackageType << enumeration >> {
+  SUBSCRIPTION
+  COURSE
+}
+
+enum TrialStatus << enumeration >> {
+  registered
+  confirmed
+  attended
+  no_show
+  converted
+  cancelled
+}
+
+' ── External references (simplified) ─────────────────────────
+class Branch << entity >> {
+  + id    : UUID
+  + name  : String
+}
+
+class User << entity >> {
+  + id     : UUID
+  + email  : String
+}
+
+' ── Entities ─────────────────────────────────────────────────
+class MembershipPackage << entity >> {
+  + id              : UUID
+  + branch_id       : UUID
+  + name            : String
+  + type            : PackageType
+  + price           : Decimal
+  + sessions        : Integer
+  + duration_days   : Integer
+  + description     : Text
+  + status          : String
+  + created_at      : Timestamp
+}
+
+class Promotion << entity >> {
+  + id              : UUID
+  + branch_id       : UUID
+  + code            : String
+  + discount_type   : String
+  + discount_value  : Decimal
+  + starts_at       : Timestamp
+  + ends_at         : Timestamp
+  + max_usage       : Integer
+  + usage_count     : Integer
+  + stackable       : Boolean
+  + status          : String
+}
+
+class TrialBooking << entity >> {
+  + id               : UUID
+  + guest_id         : UUID
+  + branch_id        : UUID
+  + scheduled_date   : Date
+  + time_slot        : String
+  + status           : TrialStatus
+  + notes            : Text
+  + created_at       : Timestamp
+}
+
+class Subscription << entity >> {
+  + id                  : UUID
+  + member_id           : UUID
+  + package_id          : UUID
+  + invoice_id          : UUID
+  + sessions_remaining  : Integer
+  + expires_at          : Timestamp
+  + status              : String
+  + activated_at        : Timestamp
+}
+
+class CourseEnrollment << entity >> {
+  + id                  : UUID
+  + member_id           : UUID
+  + package_id          : UUID
+  + invoice_id          : UUID
+  + coach_id            : UUID
+  + sessions_remaining  : Integer
+  + expires_at          : Timestamp
+  + status              : String
+  + activated_at        : Timestamp
+}
+
+class HealthProfile << entity >> {
+  + id                   : UUID
+  + member_id            : UUID
+  + height_cm            : Decimal
+  + fitness_goal         : String
+  + allergies            : String[]
+  + medical_conditions   : String[]
+  + updated_at           : Timestamp
+}
+
+' ── Relationships ─────────────────────────────────────────────
+Branch          "1" *-down-  "0..*" MembershipPackage  : "composition >"
+Branch          "1" *-down-  "0..*" Promotion          : "composition >"
+User            "1" -right-  "0..*" TrialBooking       : "guest >"
+MembershipPackage "1" -right- "0..*" Subscription      : "package >"
+MembershipPackage "1" -right- "0..*" CourseEnrollment  : "package >"
+User            "1" *-right-  "0..1" HealthProfile     : "composition >"
+
+MembershipPackage ..>  PackageType  : uses
+TrialBooking      ..>  TrialStatus  : uses
+
+note bottom of Subscription
+  Tạo tự động sau khi
+  Invoice.status = paid
+  (UC-MGR-01)
+end note
+
+note bottom of CourseEnrollment
+  Cơ chế kích hoạt và
+  trừ buổi giống Subscription
+end note
+
+@enduml

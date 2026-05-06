@@ -10,7 +10,7 @@
 
 \section{Nguyên tắc gộp use case}
 
-Bản đặc tả này được hợp nhất từ phiên bản 1.0 (~40 UC) thành \textbf{18 UC} dựa trên 7 nguyên tắc sau, nhằm tránh chia nhỏ vô nghĩa và phản ánh đúng định nghĩa kinh điển về use case:
+Bản đặc tả này được hợp nhất từ phiên bản 1.0 (~40 UC) thành \textbf{19 UC} dựa trên 7 nguyên tắc sau, nhằm tránh chia nhỏ vô nghĩa và phản ánh đúng định nghĩa kinh điển về use case:
 
 \begin{enumerate}
     \item \textbf{UC = mục tiêu nghiệp vụ tạo giá trị quan sát được}, không phải mỗi màn hình view.
@@ -56,12 +56,12 @@ Bản đặc tả này được hợp nhất từ phiên bản 1.0 (~40 UC) thà
 Xác thực & 3 & UC-AUTH-01 Đăng ký · UC-AUTH-02 Đăng nhập/Đăng xuất · UC-AUTH-03 Khôi phục mật khẩu \\ \hline
 Khách hàng & 2 & UC-GUEST-01 Tìm hiểu gói · UC-GUEST-02 Đăng ký + theo dõi trial \\ \hline
 Thành viên & 4 & UC-MEMBER-01 Check-in + sinh trắc · UC-MEMBER-02 Hồ sơ cá nhân · UC-MEMBER-03 Hồ sơ sức khoẻ · UC-MEMBER-04 Đánh giá dịch vụ \\ \hline
-Huấn luyện viên & 2 & UC-COACH-01 Quản lý ca làm việc · UC-COACH-02 Hỗ trợ check-in lỗi \\ \hline
+Huấn luyện viên & 3 & UC-COACH-01 Đăng ký \& Huỷ ca làm việc · UC-COACH-02 Quản lý ca đang dạy · UC-COACH-03 Hỗ trợ check-in lỗi \\ \hline
 Quản lý chi nhánh & 7 & UC-MGR-01 POS · UC-MGR-02 Hủy/hoàn tiền · UC-MGR-03 Catalog gói/KM · UC-MGR-04 Override check-in · UC-MGR-05 Quản lý thiết bị · UC-MGR-06 Kiểm duyệt review · UC-MGR-07 Báo cáo vận hành \\ \hline
 Quản trị viên & 2 & UC-ADMIN-01 Quản lý chi nhánh · UC-ADMIN-02 Quản lý người dùng \& phân quyền \\ \hline
-\multicolumn{2}{|r|}{\textbf{Tổng}} & \textbf{18 use case} \\ \hline
+\multicolumn{2}{|r|}{\textbf{Tổng}} & \textbf{19 use case} \\ \hline
 \end{tabular}
-\caption{Tổng quan 18 use case sau khi gộp}
+\caption{Tổng quan 19 use case sau khi gộp}
 \end{table}
 
 \newpage
@@ -328,7 +328,7 @@ Quản trị viên & 2 & UC-ADMIN-01 Quản lý chi nhánh · UC-ADMIN-02 Quản
 \subsection{Huấn luyện viên (Coach)}
 
 %% UC-COACH-01
-\subsubsection{UC-COACH-01: Quản lý ca làm việc của HLV}
+\subsubsection{UC-COACH-01: Đăng ký / Huỷ ca làm việc}
 \begingroup
 \renewcommand{\arraystretch}{1.3}
 \begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
@@ -340,23 +340,51 @@ Quản trị viên & 2 & UC-ADMIN-01 Quản lý chi nhánh · UC-ADMIN-02 Quản
 \endhead
 \hline
 \endfoot
-\textbf{Mục đích} & HLV tự đăng ký các ca trống tại branch của mình và chạy các ca đã đăng ký (xem lịch, xem roster, xem thông tin học viên). \emph{Gộp toàn bộ vòng đời ca từ phía HLV} — đăng ký + chạy ca. Manager KHÔNG phân ca cho HLV trong mô hình này; HLV chủ động chọn lịch làm việc. \\
+\textbf{Mục đích} & HLV tự đăng ký vào các ca còn slot và chủ động huỷ nếu cần — kiểm soát lịch làm việc của bản thân mà không phụ thuộc Manager phân ca. \\
 \hline
-\textbf{Tác nhân} & Coach. \\
+\textbf{Tác nhân} & Coach đã đăng nhập. \\
 \hline
-\textbf{[ĐK]} & Coach đã đăng nhập, thuộc branch có ca, ca chưa đủ HLV (cho luồng đăng ký). \\
+\textbf{[ĐK]} & Coach thuộc branch có ca; ca chưa đủ HLV (cho luồng đăng ký). \\
 \hline
-\textbf{[KT]} & \emph{Đăng ký:} bản ghi \texttt{trainer\_assignments} được tạo, audit \texttt{coach\_self\_assigned}. \emph{Chạy ca:} HLV thấy được lịch, roster real-time và thông tin tối thiểu của từng học viên (least privilege). \\
+\textbf{[KT]} & \emph{Đăng ký:} bản ghi \texttt{trainer\_assignments} được tạo, audit \texttt{coach\_self\_assigned}. \emph{Huỷ:} \texttt{cancelled\_at} được ghi, audit cập nhật. \\
 \hline
-\textbf{Luồng chính} & \textbf{(a) Đăng ký ca:} 1) HLV mở ``Ca trống'' $\rightarrow$ thấy các ca chưa đủ HLV trong branch và khoảng thời gian. 2) Chọn ca, xác nhận. 3) Hệ thống validate (không trùng giờ với ca đã nhận, còn slot HLV) $\rightarrow$ tạo assignment. 4) HLV có thể tự huỷ assignment trước khi ca bắt đầu. \textbf{(b) Chạy ca:} 1) HLV mở màn hình chính $\rightarrow$ hệ thống lấy ca theo ngày từ \texttt{trainer\_assignments}. 2) Chọn ca $\rightarrow$ hiển thị roster real-time (\texttt{class\_attendance}): tổng check-in, tên, giờ check-in, sinh trắc. 3) Click học viên $\rightarrow$ hiển thị tên, ảnh, cân nặng hôm nay, số buổi còn lại. \\
+\textbf{Luồng chính} & \textbf{(a) Đăng ký ca:} \textbf{1.} HLV mở ``Ca trống'' $\rightarrow$ hệ thống hiển thị danh sách ca chưa đủ HLV trong branch và khoảng thời gian. \textbf{2.} Chọn ca, xác nhận. \textbf{3.} Hệ thống validate không trùng giờ và còn slot HLV $\rightarrow$ tạo \texttt{trainer\_assignments}. \textbf{(b) Huỷ ca:} \textbf{1.} HLV mở danh sách ca đã đăng ký. \textbf{2.} Chọn ca muốn huỷ $\rightarrow$ hệ thống kiểm tra ca chưa bắt đầu. \textbf{3.} Ghi \texttt{cancelled\_at}. \\
 \hline
-\textbf{[NL]} & \textbf{NL-1:} Đăng ký ca trùng giờ $\rightarrow$ \texttt{SHIFT\_TIME\_OVERLAP}. \textbf{NL-2:} Ca đã đủ HLV $\rightarrow$ \texttt{SHIFT\_FULL}. \textbf{NL-3:} Huỷ ca sau khi đã bắt đầu $\rightarrow$ \texttt{SHIFT\_ALREADY\_STARTED}. \textbf{NL-4:} Truy cập ca không cùng branch $\rightarrow$ \texttt{FORBIDDEN}. \\
+\textbf{[NL]} & \textbf{NL-1:} Đăng ký ca trùng giờ $\rightarrow$ \texttt{SHIFT\_TIME\_OVERLAP}. \textbf{NL-2:} Ca đã đủ HLV $\rightarrow$ \texttt{SHIFT\_FULL}. \textbf{NL-3:} Huỷ sau khi ca đã bắt đầu $\rightarrow$ \texttt{SHIFT\_ALREADY\_STARTED}. \textbf{NL-4:} Truy cập ca ngoài branch $\rightarrow$ \texttt{FORBIDDEN}. \\
 \hline
 \end{longtable}
 \endgroup
 
 %% UC-COACH-02
-\subsubsection{UC-COACH-02: Hỗ trợ học viên check-in lỗi}
+\subsubsection{UC-COACH-02: Quản lý ca đang dạy}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & HLV theo dõi lịch làm việc theo ngày và xem thông tin học viên real-time trong ca đang diễn ra, phục vụ hỗ trợ tập luyện. \\
+\hline
+\textbf{Tác nhân} & Coach đã được phân công ca (\texttt{trainer\_assignments} active). \\
+\hline
+\textbf{[ĐK]} & Tồn tại ít nhất 1 \texttt{trainer\_assignments} active của Coach trong ngày. \\
+\hline
+\textbf{[KT]} & HLV thấy danh sách ca theo ngày; trong từng ca thấy roster real-time và chi tiết tối thiểu của từng học viên (least privilege). \\
+\hline
+\textbf{Luồng chính} & \textbf{1.} HLV mở màn hình chính $\rightarrow$ hệ thống lấy danh sách ca theo ngày từ \texttt{trainer\_assignments}. \textbf{2.} HLV chọn 1 ca $\rightarrow$ hiển thị roster real-time từ \texttt{class\_attendance}: tổng check-in, tên, giờ check-in, sinh trắc hôm nay. \textbf{3.} HLV click vào 1 học viên $\rightarrow$ hiển thị chi tiết: tên, ảnh, cân nặng hôm nay, số buổi còn lại. \\
+\hline
+\textbf{[NL]} & \textbf{NL-1:} Truy cập ca không thuộc assignment của Coach $\rightarrow$ \texttt{FORBIDDEN}. \textbf{NL-2:} Ca chưa có học viên check-in $\rightarrow$ hiển thị roster rỗng. \\
+\hline
+\end{longtable}
+\endgroup
+
+%% UC-COACH-03
+\subsubsection{UC-COACH-03: Hỗ trợ học viên check-in lỗi}
 \begingroup
 \renewcommand{\arraystretch}{1.3}
 \begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
@@ -482,7 +510,7 @@ Quản trị viên & 2 & UC-ADMIN-01 Quản lý chi nhánh · UC-ADMIN-02 Quản
 \endhead
 \hline
 \endfoot
-\textbf{Mục đích} & Đảm bảo dữ liệu attendance chính xác khi member không thể tự check-in (sự cố app/cân, ngoài cửa sổ, hết grace period). Phân biệt với UC-COACH-02: manager có thẩm quyền rộng hơn (grace period, mọi ca trong branch). \\
+\textbf{Mục đích} & Đảm bảo dữ liệu attendance chính xác khi member không thể tự check-in (sự cố app/cân, ngoài cửa sổ, hết grace period). Phân biệt với UC-COACH-03: manager có thẩm quyền rộng hơn (grace period, mọi ca trong branch). \\
 \hline
 \textbf{Tác nhân} & Manager (branch scope). \\
 \hline
@@ -490,7 +518,7 @@ Quản trị viên & 2 & UC-ADMIN-01 Quản lý chi nhánh · UC-ADMIN-02 Quản
 \hline
 \textbf{[KT]} & \texttt{class\_attendance} được tạo với \texttt{override = true}, \texttt{override\_actor = manager}, \texttt{override\_reason}; audit \texttt{attendance\_override}. \\
 \hline
-\textbf{Luồng chính} & \textbf{1.} Manager nhận thông báo từ member (UC-MEMBER-01) hoặc HLV (UC-COACH-02). \textbf{2.} Xác minh danh tính + tình trạng có mặt. \textbf{3.} Chọn member + ca, nhập lý do bắt buộc. \textbf{4.} Hệ thống tạo attendance + audit trong transaction. \\
+\textbf{Luồng chính} & \textbf{1.} Manager nhận thông báo từ member (UC-MEMBER-01) hoặc HLV (UC-COACH-03). \textbf{2.} Xác minh danh tính + tình trạng có mặt. \textbf{3.} Chọn member + ca, nhập lý do bắt buộc. \textbf{4.} Hệ thống tạo attendance + audit trong transaction. \\
 \hline
 \textbf{[NL]} & \textbf{NL-1:} Member đã check-in $\rightarrow$ chặn ghi đè. \textbf{NL-2:} Ca kết thúc quá lâu $\rightarrow$ yêu cầu Admin confirm. \textbf{NL-3:} Thiếu lý do $\rightarrow$ \texttt{OVERRIDE\_REASON\_REQUIRED}. \\
 \hline
