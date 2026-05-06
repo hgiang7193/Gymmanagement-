@@ -5,14 +5,19 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { useMutation } from "@tanstack/react-query";
 
+type EnrollInput = {
+  memberId: string;
+  coursePackageId: string;
+};
+
 export function ManagerCourseEnrollmentsPanel() {
   const { authorizedRequest } = useAuth();
-  
+
   const [memberId, setMemberId] = useState("");
   const [coursePackageId, setCoursePackageId] = useState("");
 
   const enrollMutation = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: EnrollInput) => {
       return authorizedRequest("/api/v1/manager/course-enrollments", {
         method: "POST",
         body: JSON.stringify(data),
@@ -23,7 +28,7 @@ export function ManagerCourseEnrollmentsPanel() {
       setMemberId("");
       setCoursePackageId("");
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       alert("Loi ghi danh: " + err.message);
     }
   });

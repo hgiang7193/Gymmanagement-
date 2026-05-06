@@ -5,9 +5,22 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { useMutation } from "@tanstack/react-query";
 
+type CreateInvoiceInput = {
+  memberId: string;
+  totalAmount: number;
+  dueDate: string;
+  type: string;
+};
+
+type RecordPaymentInput = {
+  invoiceId: string;
+  amount: number;
+  paymentMethod: string;
+};
+
 export function ManagerBillingPanel() {
   const { authorizedRequest } = useAuth();
-  
+
   // Invoice state
   const [memberId, setMemberId] = useState("");
   const [amount, setAmount] = useState("");
@@ -20,7 +33,7 @@ export function ManagerBillingPanel() {
   const [paymentMethod, setPaymentMethod] = useState("CASH");
 
   const createInvoiceMutation = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: CreateInvoiceInput) => {
       return authorizedRequest("/api/v1/billing/invoices", {
         method: "POST",
         body: JSON.stringify(data),
@@ -32,13 +45,13 @@ export function ManagerBillingPanel() {
       setAmount("");
       setDueDate("");
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       alert("Loi tao hoa don: " + err.message);
     }
   });
 
   const recordPaymentMutation = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: RecordPaymentInput) => {
       return authorizedRequest("/api/v1/billing/payments", {
         method: "POST",
         body: JSON.stringify(data),
@@ -49,7 +62,7 @@ export function ManagerBillingPanel() {
       setInvoiceId("");
       setPaymentAmount("");
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       alert("Loi ghi nhan thanh toan: " + err.message);
     }
   });

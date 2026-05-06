@@ -31,7 +31,7 @@ function OverrideCheckInForm() {
   const { authorizedRequest, session } = useAuth();
   const [userId, setUserId]   = useState("");
   const [shiftId, setShiftId] = useState("");
-  const [branchId, setBranchId] = useState(session?.branchIds?.[0] ?? "");
+  const branchId = session?.branchIds?.[0] ?? "";
   const [reason, setReason]   = useState("");
 
   const mutation = useMutation({

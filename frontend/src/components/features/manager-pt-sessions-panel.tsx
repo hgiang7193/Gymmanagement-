@@ -5,15 +5,21 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { useMutation } from "@tanstack/react-query";
 
+type BookPtSessionInput = {
+  memberId: string;
+  trainerId: string;
+  scheduledAt: string;
+};
+
 export function ManagerPtSessionsPanel() {
   const { authorizedRequest } = useAuth();
-  
+
   const [memberId, setMemberId] = useState("");
   const [trainerId, setTrainerId] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
 
   const bookMutation = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: BookPtSessionInput) => {
       return authorizedRequest("/api/v1/manager/pt-sessions", {
         method: "POST",
         body: JSON.stringify(data),
@@ -25,7 +31,7 @@ export function ManagerPtSessionsPanel() {
       setTrainerId("");
       setScheduledAt("");
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       alert("Loi dat lich: " + err.message);
     }
   });

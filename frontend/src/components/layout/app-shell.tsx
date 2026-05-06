@@ -15,15 +15,16 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const navigation = roleNavigation[role];
+  const isBackoffice = role === "ADMIN" || role === "MANAGER";
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.22),_transparent_28%),linear-gradient(180deg,_#fff7ed_0%,_#f8fafc_45%,_#eef2ff_100%)] text-slate-950">
+    <div className="min-h-screen bg-[var(--off-white)] text-[var(--black)]">
       <div className="mx-auto grid min-h-screen max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[280px_1fr] lg:px-8">
-        <aside className="space-y-4 rounded-[2rem] border border-black/10 bg-white/80 p-5 backdrop-blur">
+        <aside className={`space-y-4 rounded-[2rem] p-5 ${isBackoffice ? "border border-[var(--charcoal)] bg-[var(--black)]" : "border border-[var(--gray-100)] bg-white"}`}>
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-600">MYFIT</p>
-            <h1 className="text-2xl font-semibold">{title}</h1>
-            <p className="text-sm leading-6 text-slate-600">{description}</p>
+            <p className={`text-xs font-semibold uppercase tracking-[0.3em] ${isBackoffice ? "text-[var(--primary-pink)]" : "text-[var(--deep-pink)]"}`}>MYFIT</p>
+            <h1 className={`text-2xl font-semibold ${isBackoffice ? "text-white" : "text-[var(--black)]"}`}>{title}</h1>
+            <p className={`text-sm leading-6 ${isBackoffice ? "text-white/70" : "text-[var(--gray-500)]"}`}>{description}</p>
           </div>
 
           <nav className="space-y-2">
@@ -31,10 +32,10 @@ export function AppShell({
               <Link
                 key={item.href}
                 href={item.href}
-                className="block rounded-2xl border border-slate-200 px-4 py-3 transition hover:border-amber-300 hover:bg-amber-50"
+                className={`block rounded-2xl border px-4 py-3 ${isBackoffice ? "border-[var(--charcoal)] text-white/80 hover:border-[var(--primary-pink)] hover:bg-[var(--charcoal)] hover:text-white" : "border-[var(--gray-100)] text-[var(--charcoal)] hover:border-[var(--soft-pink)] hover:bg-[var(--pastel-pink)]"}`}
               >
-                <div className="text-sm font-semibold text-slate-900">{item.label}</div>
-                <div className="text-xs text-slate-500">{item.description}</div>
+                <div className="text-sm font-semibold">{item.label}</div>
+                <div className={`text-xs ${isBackoffice ? "text-white/60" : "text-[var(--gray-500)]"}`}>{item.description}</div>
               </Link>
             ))}
           </nav>
@@ -48,20 +49,20 @@ export function AppShell({
 
 export function EndpointPreview({ endpoint, method, notes }: { endpoint: string; method: string; notes: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+    <div className="rounded-2xl border border-[var(--gray-100)] bg-[var(--off-white)] px-4 py-3">
       <div className="flex items-center gap-3">
-        <span className="rounded-full bg-slate-950 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-white">{method}</span>
-        <code className="text-sm text-slate-900">{endpoint}</code>
+        <span className="rounded-full bg-[var(--black)] px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-white">{method}</span>
+        <code className="text-sm text-[var(--black)]">{endpoint}</code>
       </div>
-      <p className="mt-2 text-sm text-slate-600">{notes}</p>
+      <p className="mt-2 text-sm text-[var(--gray-500)]">{notes}</p>
     </div>
   );
 }
 
 export function ScreenIntro({ eyebrow, title, body }: { eyebrow: string; title: string; body: string }) {
   return (
-    <SurfaceCard title={title} description={body} className="bg-white/85">
-      <p className="text-xs font-semibold uppercase tracking-[0.32em] text-amber-600">{eyebrow}</p>
+    <SurfaceCard title={title} description={body}>
+      <p className="text-xs font-semibold uppercase tracking-[0.32em] text-[var(--deep-pink)]">{eyebrow}</p>
     </SurfaceCard>
   );
 }
