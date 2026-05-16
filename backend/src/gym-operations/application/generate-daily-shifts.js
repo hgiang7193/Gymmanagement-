@@ -1,4 +1,4 @@
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID: uuidv4 } = require('node:crypto');
 
 // Fixed shift definitions per MVP_API_CONTRACTS.md Section 8.4
 const SHIFT_DEFINITIONS = [

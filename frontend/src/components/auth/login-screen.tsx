@@ -3,7 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Lock, Mail } from "lucide-react";
+import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/providers/auth-provider";
 import type { UserRole } from "@/lib/api/types";
@@ -13,7 +13,7 @@ const roleHome: Record<UserRole, string> = {
   ADMIN: "/admin/branches",
   MANAGER: "/manager/branches",
   COACH: "/coach",
-  MEMBER: "/member/subscription",
+  MEMBER: "/member",
   GUEST: "/",
 };
 
@@ -24,18 +24,12 @@ export function LoginScreen() {
   const searchParams = useSearchParams();
   const { login, isHydrating } = useAuth();
 
-  const [email, setEmail] = useState("admin@myfit.local");
-  const [password, setPassword] = useState("AdminPass123");
+  const [email, setEmail] = useState("admin@myfit.vn");
+  const [password, setPassword] = useState("Admin@2026!");
   const [remember, setRemember] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [errorPulse, setErrorPulse] = useState(false);
-  const [roleHistory] = useState<UserRole[]>(() => {
-    if (typeof window === "undefined") return [];
-    const stored = window.localStorage.getItem("myfit_role_history");
-    if (!stored) return [];
-    const parsed = stored.split(",").filter(Boolean) as UserRole[];
-    return Array.from(new Set(parsed));
-  });
 
   const redirectTarget = useMemo(() => searchParams.get("redirect"), [searchParams]);
 
@@ -61,19 +55,6 @@ export function LoginScreen() {
 
   return (
     <AuthShell title="Đăng nhập" subtitle="Chào mừng bạn quay lại" cardPaddingClassName="p-8">
-      {roleHistory.length > 1 ? (
-        <div className="mb-6 rounded-xl bg-[var(--gray-100)] p-1">
-          <div className="grid grid-cols-2 gap-1">
-            <button type="button" className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-[var(--primary-pink)] shadow-sm">
-              Member
-            </button>
-            <button type="button" className="rounded-lg px-3 py-2 text-sm font-medium text-[var(--gray-500)]">
-              Coach/Admin
-            </button>
-          </div>
-        </div>
-      ) : null}
-
       <form className="space-y-5" onSubmit={onSubmit}>
         <label className="block">
           <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--gray-500)]">Email</span>
@@ -82,7 +63,7 @@ export function LoginScreen() {
             <input
               type="email"
               autoComplete="email"
-              className="myfit-input pl-11"
+              className="myfit-input rounded-2xl pl-11"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               list="login-email-suggestions"
@@ -108,39 +89,66 @@ export function LoginScreen() {
           <div className="relative">
             <Lock className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--gray-300)]" />
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               autoComplete="current-password"
-              className={`myfit-input pl-11 ${errorPulse ? "border-[var(--rose-error)] animate-[shake_0.35s_ease-in-out]" : ""}`}
+              className={`myfit-input rounded-2xl pl-11 pr-12 ${errorPulse ? "border-[var(--rose-error)] animate-[shake_0.35s_ease-in-out]" : ""}`}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-[var(--gray-500)] transition-colors hover:text-[var(--primary-pink)]"
+              aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
           </div>
-          {errorPulse ? <p className="mt-1 text-xs text-[var(--rose-error)]">Thông tin đăng nhập không chính xác.</p> : null}
+          {errorPulse ? (
+            <p className="mt-1.5 text-xs text-[var(--rose-error)]">Thông tin đăng nhập không chính xác.</p>
+          ) : null}
         </label>
 
-        <label className="flex items-center gap-2.5 text-sm text-[var(--gray-500)]">
-          <span className={`relative inline-flex h-5 w-5 items-center justify-center rounded-md border-2 ${remember ? "border-[var(--primary-pink)] bg-[var(--primary-pink)]" : "border-[var(--gray-300)] bg-white"}`}>
+        <label className="flex cursor-pointer items-center gap-2.5 text-sm text-[var(--gray-500)]">
+          <span
+            className={`relative inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-colors ${
+              remember
+                ? "border-[var(--primary-pink)] bg-[var(--primary-pink)]"
+                : "border-[var(--gray-300)] bg-white hover:border-[var(--primary-pink)]"
+            }`}
+          >
             <input
               type="checkbox"
               checked={remember}
               onChange={(event) => setRemember(event.target.checked)}
               className="absolute inset-0 cursor-pointer opacity-0"
             />
-            <span className={`h-2.5 w-2.5 rotate-45 border-b-2 border-r-2 border-white ${remember ? "opacity-100" : "opacity-0"}`} />
+            <span
+              className={`h-2.5 w-2.5 rotate-45 border-b-2 border-r-2 border-white transition-opacity ${
+                remember ? "opacity-100" : "opacity-0"
+              }`}
+            />
           </span>
           Ghi nhớ đăng nhập
         </label>
 
-        <button type="submit" disabled={submitting || isHydrating} className="myfit-btn-primary flex h-14 w-full items-center justify-center text-base">
-          {submitting ? "Đang đăng nhập..." : "Đăng nhập"}
+        <button
+          type="submit"
+          disabled={submitting || isHydrating}
+          className="myfit-btn-primary flex h-14 w-full items-center justify-center gap-2 text-base font-bold"
+        >
+          {submitting ? (
+            <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+          ) : null}
+          <span>{submitting ? "Đang đăng nhập..." : "Đăng nhập"}</span>
         </button>
       </form>
 
       <p className="mt-6 text-center text-sm text-[var(--gray-500)]">
         Chưa có tài khoản?{" "}
         <Link href="/register" className="font-semibold text-[var(--primary-pink)] hover:underline">
-          Tạo tài khoản
+          Đăng ký
         </Link>
       </p>
     </AuthShell>

@@ -1,0 +1,90 @@
+Project MYFIT_11_FACILITY {
+  database_type: "PostgreSQL"
+  Note: "Domain 11 — Co so vat chat: areas, assets, maintenance tickets & schedules."
+}
+
+Table areas {
+  id text [pk]
+  branch_id text [not null]
+  name text [not null]
+  is_active boolean [not null]
+  created_by text [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table assets {
+  id text [pk]
+  branch_id text [not null]
+  area_id text
+  asset_code text [unique, not null]
+  name text [not null]
+  asset_type text [not null]
+  status text [not null]
+  created_by text [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table maintenance_tickets {
+  id text [pk]
+  asset_id text [not null]
+  branch_id text [not null]
+  title text [not null]
+  status text [not null]
+  reported_by text [not null]
+  assigned_to text
+  resolved_at timestamptz
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table maintenance_schedules {
+  id text [pk]
+  branch_id text [not null]
+  asset_id text
+  title text [not null]
+  frequency text [not null]
+  interval_days int [not null]
+  next_due_at timestamptz [not null]
+  is_active boolean [not null]
+  created_by text [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table maintenance_schedule_runs {
+  id text [pk]
+  schedule_id text [not null]
+  ticket_id text
+  triggered_at timestamptz [not null]
+  triggered_by text
+}
+
+// ── External stubs ────────────────────────────────────────────
+Table users [note: "external · domain 01"] {
+  id text [pk]
+}
+
+Table branches [note: "external · domain 02"] {
+  id text [pk]
+}
+
+// ── Internal relationships ────────────────────────────────────
+Ref: assets.area_id > areas.id
+Ref: maintenance_schedules.asset_id > assets.id
+Ref: maintenance_tickets.asset_id > assets.id
+Ref: maintenance_schedule_runs.schedule_id > maintenance_schedules.id
+Ref: maintenance_schedule_runs.ticket_id > maintenance_tickets.id
+
+// ── Cross-domain relationships ────────────────────────────────
+Ref: areas.branch_id > branches.id
+Ref: areas.created_by > users.id
+Ref: assets.branch_id > branches.id
+Ref: assets.created_by > users.id
+Ref: maintenance_schedule_runs.triggered_by > users.id
+Ref: maintenance_schedules.branch_id > branches.id
+Ref: maintenance_schedules.created_by > users.id
+Ref: maintenance_tickets.assigned_to > users.id
+Ref: maintenance_tickets.branch_id > branches.id
+Ref: maintenance_tickets.reported_by > users.id

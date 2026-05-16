@@ -1,0 +1,61 @@
+Project MYFIT_07_PT {
+  database_type: "PostgreSQL"
+  Note: "Domain 07 — Huấn luyện viên riêng (PT): packages, enrollments, sessions."
+}
+
+Table pt_packages {
+  id text [pk]
+  code text [unique, not null]
+  name text [not null]
+  price bigint [not null]
+  total_sessions int [not null]
+  is_active boolean [not null]
+  created_at timestamptz [not null]
+}
+
+Table pt_enrollments {
+  id text [pk]
+  user_id text [not null]
+  pt_package_id text [not null]
+  branch_id text [not null]
+  status text [not null]
+  sessions_attended int [not null]
+  sessions_remaining int [not null]
+  enrolled_at timestamptz [not null]
+  created_by text [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table pt_sessions {
+  id text [pk]
+  pt_enrollment_id text [not null]
+  trainer_user_id text [not null]
+  branch_id text [not null]
+  scheduled_at timestamptz [not null]
+  status text [not null]
+  attended_at timestamptz
+  notes text
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+// ── External stubs ────────────────────────────────────────────
+Table users [note: "external · domain 01"] {
+  id text [pk]
+}
+
+Table branches [note: "external · domain 02"] {
+  id text [pk]
+}
+
+// ── Internal relationships ────────────────────────────────────
+Ref: pt_enrollments.pt_package_id > pt_packages.id
+Ref: pt_sessions.pt_enrollment_id > pt_enrollments.id
+
+// ── Cross-domain relationships ────────────────────────────────
+Ref: pt_enrollments.branch_id > branches.id
+Ref: pt_enrollments.created_by > users.id
+Ref: pt_enrollments.user_id > users.id
+Ref: pt_sessions.branch_id > branches.id
+Ref: pt_sessions.trainer_user_id > users.id

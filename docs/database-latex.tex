@@ -1,6 +1,17 @@
+\clearpage
+
 \chapter{Thiết kế hệ thống}
 
 \section{Thiết kế cơ sở dữ liệu}
+
+\subsection{Sơ đồ RD}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.75\textwidth]{core.png}
+     \caption{Sơ đồ RD nhóm core}
+\end{figure}
+
 
 \subsection{Mô tả các bảng cơ sở dữ liệu}
 
@@ -50,7 +61,7 @@
     \item \texttt{name} (text): Tên hiển thị.
 \end{itemize} \\ \hline
 
-\textbf{user\_role\_assignments} \newline (phân\_vai\_trò) &
+\textbf{user\_role \_assignments} \newline (phân\_vai\_trò) &
 \begin{itemize}
     \item \texttt{id} (text, khóa chính).
     \item \texttt{user\_id} (FK → \texttt{users.id}): Người dùng được gán.
@@ -88,7 +99,7 @@
     \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
 \end{itemize} \\ \hline
 
-\textbf{branch\_manager\_assignments} \newline (phân\_công\_quản\_lý) &
+\textbf{branch\_manager \_assignments} \newline (phân\_công\_quản\_lý) &
 \begin{itemize}
     \item \texttt{id} (text, khóa chính).
     \item \texttt{branch\_id} (FK → \texttt{branches.id}): Chi nhánh được phân công.
@@ -134,7 +145,7 @@
     \item \texttt{activated\_at} (timestamptz): Thời điểm kích hoạt.
 \end{itemize} \\ \hline
 
-\textbf{subscription\_status\_history} \newline (lịch\_sử\_trạng\_thái\_đăng\_ký) &
+\textbf{subscription\_status \_history} \newline (lịch\_sử\_trạng\_thái \_đăng\_ký) &
 \begin{itemize}
     \item \texttt{id} (text, khóa chính).
     \item \texttt{subscription\_id} (FK → \texttt{subscriptions.id}): Đăng ký tương ứng.
@@ -268,7 +279,7 @@
     \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
 \end{itemize} \\ \hline
 
-\textbf{trial\_status\_history} \newline (lịch\_sử\_trạng\_thái\_tập\_thử) &
+\textbf{trial\_status\_history} \newline (lịch\_sử\_trạng\_thái \_tập \_thử) &
 \begin{itemize}
     \item \texttt{id} (text, khóa chính).
     \item \texttt{trial\_booking\_id} (FK → \texttt{trial\_bookings.id}): Lịch tập thử tương ứng.
@@ -400,7 +411,7 @@
 
 \multicolumn{2}{|l|}{\textbf{Nhóm 10: Sức khỏe và chỉ số cơ thể}} \\ \hline
 
-\textbf{member\_health\_profiles} \newline (hồ\_sơ\_sức\_khỏe) &
+\textbf{member\_health \_profiles} \newline (hồ\_sơ\_sức\_khỏe) &
 \begin{itemize}
     \item \texttt{id} (text, khóa chính).
     \item \texttt{user\_id} (FK → \texttt{users.id}, duy nhất): Thành viên (quan hệ 1–1).
@@ -415,7 +426,7 @@
     \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
 \end{itemize} \\ \hline
 
-\textbf{member\_weight\_logs} \newline (nhật\_ký\_cân\_nặng) &
+\textbf{member\_weight \_logs} \newline (nhật\_ký\_cân\_nặng) &
 \begin{itemize}
     \item \texttt{id} (text, khóa chính).
     \item \texttt{user\_id} (FK → \texttt{users.id}): Thành viên.
@@ -428,7 +439,7 @@
     \item \texttt{created\_at} (timestamptz): Thời gian tạo.
 \end{itemize} \\ \hline
 
-\textbf{member\_body\_measurements} \newline (số\_đo\_cơ\_thể) &
+\textbf{member\_body \_measurements} \newline (số\_đo\_cơ\_thể) &
 \begin{itemize}
     \item \texttt{id} (text, khóa chính).
     \item \texttt{user\_id} (FK → \texttt{users.id}): Thành viên.
@@ -465,7 +476,7 @@
     \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
 \end{itemize} \\ \hline
 
-\textbf{review\_moderation\_logs} \newline (nhật\_ký\_kiểm\_duyệt) &
+\textbf{review\_moderation \_logs} \newline (nhật\_ký\_kiểm \_duyệt) &
 \begin{itemize}
     \item \texttt{id} (text, khóa chính).
     \item \texttt{review\_id} (FK → \texttt{reviews.id}): Đánh giá bị kiểm duyệt.
@@ -536,7 +547,7 @@
     \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
 \end{itemize} \\ \hline
 
-\textbf{maintenance\_schedules} \newline (lịch\_bảo\_trì\_định\_kỳ) &
+\textbf{maintenance \_schedules} \newline (lịch\_bảo\_trì\_định \_kỳ) &
 \begin{itemize}
     \item \texttt{id} (text, khóa chính).
     \item \texttt{branch\_id} (FK → \texttt{branches.id}): Chi nhánh.
@@ -552,7 +563,7 @@
     \item \texttt{created\_at}, \texttt{updated\_at} (timestamptz): Thời gian tạo và cập nhật.
 \end{itemize} \\ \hline
 
-\textbf{maintenance\_schedule\_runs} \newline (lịch\_sử\_chạy\_bảo\_trì) &
+\textbf{maintenance \_schedule \_runs} \newline (lịch\_sử\_chạy\_bảo \_trì) &
 \begin{itemize}
     \item \texttt{id} (text, khóa chính).
     \item \texttt{schedule\_id} (FK → \texttt{maintenance\_schedules.id}): Lịch bảo trì gốc.

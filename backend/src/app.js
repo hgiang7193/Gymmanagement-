@@ -60,6 +60,7 @@ const {
   UpdateMaintenanceScheduleUseCase, RunDueMaintenanceSchedulesUseCase,
 } = require('./gym-operations/application/manage-facility');
 const { createRuntimeDeps } = require('./shared/infrastructure/create-runtime-deps');
+const { NutritionChatUseCase } = require('./nutrition-ai/application/nutrition-chat');
 
 function createApp(options = {}) {
   const deps = options.deps ?? createRuntimeDeps();
@@ -138,6 +139,7 @@ function createApp(options = {}) {
   const listSchedules        = new ListMaintenanceSchedulesUseCase(deps);
   const updateSchedule       = new UpdateMaintenanceScheduleUseCase(deps);
   const runDueSchedules      = new RunDueMaintenanceSchedulesUseCase(deps);
+  const nutritionChat        = new NutritionChatUseCase(deps);
 
   function getBearerToken(req) {
     const header = req.headers.authorization || '';
@@ -362,7 +364,13 @@ function createApp(options = {}) {
   }));
 
   v1.get('/manager/trials', requireManager, asyncHandler(async (req, res) => {
-    const result = await listManagerTrials.execute({ managerUserId: req.auth.userId });
+    let result;
+    if (req.auth.primaryRole === 'ADMIN') {
+      const allBranches = await deps.branchRepository.list();
+      result = await deps.trialBookingRepository.listByBranchIds(allBranches.map((b) => b.id));
+    } else {
+      result = await listManagerTrials.execute({ managerUserId: req.auth.userId });
+    }
     res.status(200).json({ data: result, error: null, meta: {} });
   }));
 
@@ -622,7 +630,7 @@ function createApp(options = {}) {
     const invoices = await deps.invoiceRepository.findByBranchAndDate(branchId, date);
     const paid    = invoices.filter(i => i.status === 'paid');
     const pending = invoices.filter(i => i.status === 'pending');
-    const totalRevenue = paid.reduce((s, i) => s + (i.totalAmount || 0), 0);
+    const totalRevenue = paid.reduce((s, i) => s + Number(i.totalAmount || 0), 0);
     res.status(200).json({ data: { date, branchId, totalInvoices: invoices.length, paidCount: paid.length, pendingCount: pending.length, totalRevenue }, error: null, meta: {} });
   }));
 
@@ -725,14 +733,26 @@ function createApp(options = {}) {
     if (!branchId) return res.status(400).json({ data: null, error: { code: 'NO_BRANCH', message: 'No branch assigned' }, meta: {} });
     const role = req.query.role ?? null;
     let query = `
-      SELECT sp.id, sp.user_id, sp.staff_role, sp.base_branch_id, sp.is_active,
-             p.full_name, p.phone_number, u.email
+      SELECT sp.id,
+             sp.user_id           AS "userId",
+             sp.job_title         AS "jobTitle",
+             sp.primary_branch_id AS "baseBranchId",
+             sp.status,
+             (sp.status = 'ACTIVE') AS "isActive",
+             sp.employee_code     AS "employeeCode",
+             sp.hire_date         AS "hireDate",
+             p.full_name          AS "fullName",
+             u.email,
+             COALESCE(r.code, sp.job_title) AS "staffRole",
+             NULL::text           AS "phoneNumber"
       FROM staff_profiles sp
       JOIN users u ON u.id = sp.user_id
       LEFT JOIN profiles p ON p.user_id = sp.user_id
-      WHERE sp.base_branch_id = $1`;
+      LEFT JOIN user_role_assignments ura ON ura.user_id = sp.user_id
+      LEFT JOIN roles r ON r.id = ura.role_id
+      WHERE sp.primary_branch_id = $1`;
     const params = [branchId];
-    if (role) { params.push(role); query += ` AND sp.staff_role = $${params.length}`; }
+    if (role) { params.push(role); query += ` AND COALESCE(r.code, sp.job_title) = $${params.length}`; }
     query += ' ORDER BY p.full_name';
     const result = await deps.pool.query(query, params);
     res.status(200).json({ data: result.rows, error: null, meta: {} });
@@ -741,11 +761,12 @@ function createApp(options = {}) {
   // ── UC-MGR-STAFF-02: Deactivate staff ──
   v1.patch('/manager/staff/:staffId/status', requireManager, asyncHandler(async (req, res) => {
     const { isActive } = req.body;
+    const newStatus = isActive ? 'ACTIVE' : 'INACTIVE';
     await deps.pool.query(
-      'UPDATE staff_profiles SET is_active = $2 WHERE id = $1',
-      [req.params.staffId, !!isActive]
+      'UPDATE staff_profiles SET status = $2, updated_at = NOW() WHERE id = $1',
+      [req.params.staffId, newStatus]
     );
-    res.status(200).json({ data: { staffId: req.params.staffId, isActive: !!isActive }, error: null, meta: {} });
+    res.status(200).json({ data: { staffId: req.params.staffId, status: newStatus }, error: null, meta: {} });
   }));
 
   // ── UC-MGR-03: Trial funnel stats ──
@@ -918,11 +939,16 @@ function createApp(options = {}) {
   // ── UC-ADMIN-05: List all staff (admin) ──
   v1.get('/admin/staff', requireAdmin, asyncHandler(async (req, res) => {
     const result = await deps.pool.query(
-      `SELECT sp.id, sp.user_id, sp.employee_code, sp.job_title,
-              sp.primary_branch_id AS base_branch_id,
-              (sp.status = 'ACTIVE') AS is_active,
-              r.code AS staff_role,
-              p.full_name, p.phone_number, u.email
+      `SELECT sp.id,
+              sp.user_id           AS "userId",
+              sp.employee_code     AS "employeeCode",
+              sp.job_title         AS "jobTitle",
+              sp.primary_branch_id AS "baseBranchId",
+              (sp.status = 'ACTIVE') AS "isActive",
+              COALESCE(r.code, sp.job_title) AS "staffRole",
+              p.full_name          AS "fullName",
+              u.email,
+              NULL::text           AS "phoneNumber"
        FROM staff_profiles sp
        JOIN users u ON u.id = sp.user_id
        LEFT JOIN profiles p ON p.user_id = sp.user_id
@@ -931,6 +957,16 @@ function createApp(options = {}) {
        ORDER BY p.full_name`
     );
     res.status(200).json({ data: result.rows, error: null, meta: {} });
+  }));
+
+  // ── AI-01: Chatbot tư vấn dinh dưỡng (Groq / Llama-3.1-8b-instant, miễn phí) ──
+  v1.post('/me/nutrition-chat', requireAuthenticated, asyncHandler(async (req, res) => {
+    const result = await nutritionChat.execute({
+      userId: req.auth.userId,
+      message: req.body.message,
+      history: req.body.history || [],
+    });
+    res.status(200).json({ data: result, error: null, meta: {} });
   }));
 
   v1.use((req, res) => {

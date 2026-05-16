@@ -1,0 +1,60 @@
+Project MYFIT_02_ORG_BRANCHES {
+  database_type: "PostgreSQL"
+  Note: "Domain 02 — Tổ chức & chi nhánh: organizations, branches, staff, managers."
+}
+
+Table organizations {
+  id text [pk]
+  name text [not null]
+  tax_id text
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table branches {
+  id text [pk]
+  organization_id text
+  code text [unique, not null]
+  name text [not null]
+  status text [not null]
+  phone_number text
+  zalo_link text
+  zalo_phone text
+  contact_email text
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table branch_manager_assignments {
+  id text [pk]
+  branch_id text [not null]
+  manager_user_id text [not null]
+  active_from timestamptz [not null]
+  active_to timestamptz
+  created_at timestamptz [not null]
+}
+
+Table staff_profiles {
+  id text [pk]
+  user_id text [not null]
+  employee_code text [unique, not null]
+  job_title text [not null]
+  primary_branch_id text [not null]
+  status text [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+// ── External stubs (domain 01) ────────────────────────────────
+Table users [note: "external · domain 01"] {
+  id text [pk]
+}
+
+// ── Internal relationships ────────────────────────────────────
+Ref: branch_manager_assignments.branch_id > branches.id
+Ref: branches.organization_id > organizations.id
+Ref: staff_profiles.primary_branch_id > branches.id
+
+// ── Cross-domain relationships ────────────────────────────────
+Ref: branch_manager_assignments.manager_user_id > users.id
+Ref: staff_profiles.user_id > users.id

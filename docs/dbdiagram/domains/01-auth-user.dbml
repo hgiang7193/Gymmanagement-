@@ -1,0 +1,88 @@
+Project MYFIT_01_AUTH_USER {
+  database_type: "PostgreSQL"
+  Note: "Domain 01 — Xác thực & người dùng: users, profiles, roles, sessions, audit."
+}
+
+Table users {
+  id text [pk]
+  email text [unique, not null]
+  status text [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table profiles {
+  id text [pk]
+  user_id text [not null]
+  full_name text
+  phone_number text
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table roles {
+  id text [pk]
+  code text [unique, not null]
+  name text [not null]
+}
+
+Table user_role_assignments {
+  id text [pk]
+  user_id text [not null]
+  role_id text [not null]
+  branch_id text
+  assigned_at timestamptz [not null]
+}
+
+Table refresh_sessions {
+  id text [pk]
+  user_id text [not null]
+  token text [unique, not null]
+  revoked_at timestamptz
+  created_at timestamptz [not null]
+}
+
+Table password_reset_tokens {
+  id text [pk]
+  user_id text [not null]
+  token text [unique, not null]
+  expires_at timestamptz [not null]
+  used_at timestamptz
+  created_at timestamptz [not null]
+}
+
+Table audit_logs {
+  id text [pk]
+  actor_user_id text
+  action_code text [not null]
+  entity_type text
+  entity_id text
+  branch_id text
+  created_at timestamptz [not null]
+}
+
+Table security_events {
+  id text [pk]
+  user_id text
+  event_type text [not null]
+  severity text [not null]
+  created_at timestamptz [not null]
+}
+
+// ── External stubs (domain 02) ────────────────────────────────
+Table branches [note: "external · domain 02"] {
+  id text [pk]
+}
+
+// ── Internal relationships ────────────────────────────────────
+Ref: audit_logs.actor_user_id > users.id
+Ref: password_reset_tokens.user_id > users.id
+Ref: profiles.user_id > users.id
+Ref: refresh_sessions.user_id > users.id
+Ref: security_events.user_id > users.id
+Ref: user_role_assignments.role_id > roles.id
+Ref: user_role_assignments.user_id > users.id
+
+// ── Cross-domain relationships ────────────────────────────────
+Ref: audit_logs.branch_id > branches.id
+Ref: user_role_assignments.branch_id > branches.id

@@ -8,7 +8,7 @@ import { SurfaceCard } from "@/components/ui/surface-card";
 
 type Review = {
   id: string;
-  userId: string;
+  reviewerId: string;
   targetType: string;
   targetId: string;
   rating: number;
@@ -16,6 +16,19 @@ type Review = {
   status: "visible" | "flagged" | "hidden" | string;
   branchId: string | null;
   createdAt: string;
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  flagged: "Bị gắn cờ",
+  visible: "Hiển thị",
+  hidden: "Đã ẩn",
+};
+
+const TARGET_TYPE_LABELS: Record<string, string> = {
+  shift: "Ca tập",
+  coach: "Huấn luyện viên",
+  equipment: "Thiết bị",
+  exercise: "Bài tập",
 };
 
 const STATUS_FILTERS = ["flagged", "visible", "hidden"] as const;
@@ -64,40 +77,42 @@ export function ManagerReviewsModerationPanel() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm font-semibold text-slate-700">Lọc trạng thái:</span>
-        {STATUS_FILTERS.map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => setFilter(s)}
-            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-              filter === s ? "bg-slate-950 text-white" : "border border-slate-300 text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            {s}
-          </button>
-        ))}
+        <div className="myfit-tab-bar">
+          {STATUS_FILTERS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setFilter(s)}
+              className={`myfit-tab-pill rounded-full px-3 py-1.5 ${
+                filter === s ? "myfit-tab-pill--active" : "myfit-tab-pill--ghost"
+              }`}
+            >
+              {STATUS_LABELS[s] ?? s}
+            </button>
+          ))}
+        </div>
       </div>
 
       {reviewsQuery.isLoading ? <p className="text-sm text-slate-600">Đang tải...</p> : null}
       {reviewsQuery.isError ? <p className="text-sm text-rose-600">Không tải được danh sách review.</p> : null}
 
       {(reviewsQuery.data ?? []).length === 0 ? (
-        <p className="text-sm text-slate-500">Không có review nào ở trạng thái {filter}.</p>
+        <p className="text-sm text-slate-500">Không có đánh giá nào ở trạng thái &ldquo;{STATUS_LABELS[filter] ?? filter}&rdquo;.</p>
       ) : null}
 
       <div className="space-y-3">
         {(reviewsQuery.data ?? []).map((r) => (
           <SurfaceCard
             key={r.id}
-            title={`★ ${r.rating}/5 · ${r.targetType}`}
-            description={`Reviewer: ${r.userId.slice(0, 12)}... · Target: ${r.targetId.slice(0, 12)}...`}
+            title={`★ ${r.rating}/5 · ${TARGET_TYPE_LABELS[r.targetType] ?? r.targetType}`}
+            description={`Người đánh giá: ${(r.reviewerId ?? "").slice(0, 8)}… · Đối tượng: ${r.targetId.slice(0, 16)}…`}
           >
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <span className={`rounded-full px-3 py-1 text-xs font-semibold ${STATUS_BADGE[r.status] ?? "bg-slate-100 text-slate-700"}`}>
-                  {r.status}
+                  {STATUS_LABELS[r.status] ?? r.status}
                 </span>
                 <span className="text-xs text-slate-500">
                   {new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(r.createdAt))}
@@ -112,9 +127,9 @@ export function ManagerReviewsModerationPanel() {
                     onChange={(e) => setModerating({ ...moderating, status: e.target.value })}
                     className="w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm"
                   >
-                    <option value="visible">visible (hiển thị)</option>
-                    <option value="flagged">flagged (gắn cờ)</option>
-                    <option value="hidden">hidden (ẩn)</option>
+                    <option value="visible">Hiển thị</option>
+                    <option value="flagged">Gắn cờ</option>
+                    <option value="hidden">Ẩn</option>
                   </select>
                   <textarea
                     value={moderating.reason}

@@ -121,7 +121,7 @@ class RecordPaymentUseCase {
 
         const existingActive = await client.query(
           `select id from subscriptions where user_id=$1 and status='ACTIVE' limit 1`,
-          [invoice.user_id]
+          [invoice.userId]
         );
         if (existingActive.rows.length > 0) {
           activations.push({ type: 'membership', skipped: true, reason: 'ALREADY_ACTIVE' });
@@ -135,20 +135,20 @@ class RecordPaymentUseCase {
               started_at, expires_at, total_sessions, sessions_used, sessions_remaining,
               activated_by, activated_at)
            values ($1,$2,$3,$4,'ACTIVE',$5,$6,$7,0,$7,$8,$5)`,
-          [subId, invoice.user_id, plan.id, invoice.branch_id, now, expiresAt, plan.total_sessions, actorUserId]
+          [subId, invoice.userId, plan.id, invoice.branchId, now, expiresAt, plan.total_sessions, actorUserId]
         );
 
         const memberRole = await this.roleRepository.findByCode('MEMBER');
         if (memberRole) {
           const roleAssignmentExists = await client.query(
             `select id from user_role_assignments where user_id=$1 and role_id=$2`,
-            [invoice.user_id, memberRole.id]
+            [invoice.userId, memberRole.id]
           );
           if (roleAssignmentExists.rows.length === 0) {
             await client.query(
               `insert into user_role_assignments (id, user_id, role_id, branch_id, assigned_at)
                values ($1,$2,$3,$4,$5)`,
-              [this.idGenerator.generate(), invoice.user_id, memberRole.id, invoice.branch_id, now]
+              [this.idGenerator.generate(), invoice.userId, memberRole.id, invoice.branchId, now]
             );
           }
         }
@@ -162,7 +162,7 @@ class RecordPaymentUseCase {
         await client.query(
           `insert into audit_logs (id, actor_user_id, action_code, entity_type, entity_id, branch_id, metadata_json, created_at)
            values ($1,$2,'membership_activated_via_payment','subscription',$3,$4,$5,$6)`,
-          [this.idGenerator.generate(), actorUserId, subId, invoice.branch_id,
+          [this.idGenerator.generate(), actorUserId, subId, invoice.branchId,
            JSON.stringify({ invoiceId: invoice.id, planId: plan.id }), now]
         );
 
@@ -174,7 +174,7 @@ class RecordPaymentUseCase {
 
         const existingActive = await client.query(
           `select id from course_enrollments where user_id=$1 and status='ACTIVE' limit 1`,
-          [invoice.user_id]
+          [invoice.userId]
         );
         if (existingActive.rows.length > 0) {
           activations.push({ type: 'course', skipped: true, reason: 'ALREADY_ACTIVE' });
@@ -187,13 +187,13 @@ class RecordPaymentUseCase {
               enrolled_at, started_at, total_sessions, sessions_attended, sessions_remaining,
               created_by, created_at)
            values ($1,$2,$3,$4,'ACTIVE',$5,$5,$6,0,$6,$7,$5)`,
-          [enrollId, invoice.user_id, pkg.id, invoice.branch_id, now, pkg.total_sessions, actorUserId]
+          [enrollId, invoice.userId, pkg.id, invoice.branchId, now, pkg.total_sessions, actorUserId]
         );
 
         await client.query(
           `insert into audit_logs (id, actor_user_id, action_code, entity_type, entity_id, branch_id, metadata_json, created_at)
            values ($1,$2,'course_enrolled_via_payment','course_enrollment',$3,$4,$5,$6)`,
-          [this.idGenerator.generate(), actorUserId, enrollId, invoice.branch_id,
+          [this.idGenerator.generate(), actorUserId, enrollId, invoice.branchId,
            JSON.stringify({ invoiceId: invoice.id, packageId: pkg.id }), now]
         );
 
@@ -204,7 +204,7 @@ class RecordPaymentUseCase {
     await client.query(
       `insert into audit_logs (id, actor_user_id, action_code, entity_type, entity_id, branch_id, metadata_json, created_at)
        values ($1,$2,'invoice_paid','invoice',$3,$4,$5,$6)`,
-      [this.idGenerator.generate(), actorUserId, invoice.id, invoice.branch_id,
+      [this.idGenerator.generate(), actorUserId, invoice.id, invoice.branchId,
        JSON.stringify({ activations: activations.length }), now]
     );
 

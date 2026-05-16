@@ -131,7 +131,7 @@ export function AdminStaffPanel() {
                 className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-amber-400" />
             </label>
             <label className="block space-y-1 text-sm">
-              <span className="font-medium text-slate-700">Branch ID *</span>
+              <span className="font-medium text-slate-700">Chi nhánh *</span>
               <input required value={branchId} onChange={e => setBranchId(e.target.value)}
                 placeholder="ID chi nhánh cơ sở"
                 className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-amber-400" />
@@ -140,9 +140,9 @@ export function AdminStaffPanel() {
               <span className="font-medium text-slate-700">Vai trò *</span>
               <select value={staffRole} onChange={e => setStaffRole(e.target.value)}
                 className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-amber-400 bg-white">
-                <option value="COACH">Coach — Huấn luyện viên</option>
-                <option value="RECEPTIONIST">Receptionist — Lễ tân</option>
-                <option value="MANAGER">Manager — Quản lý chi nhánh</option>
+                <option value="COACH">Huấn luyện viên</option>
+                <option value="RECEPTIONIST">Lễ tân</option>
+                <option value="MANAGER">Quản lý chi nhánh</option>
               </select>
             </label>
           </div>

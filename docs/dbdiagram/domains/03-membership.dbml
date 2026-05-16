@@ -1,0 +1,76 @@
+Project MYFIT_03_MEMBERSHIP {
+  database_type: "PostgreSQL"
+  Note: "Domain 03 — Gói tập hội viên (theo thời gian): plans, subscriptions, check-ins."
+}
+
+Table membership_plans {
+  id text [pk]
+  code text [unique, not null]
+  name text [not null]
+  plan_type text [not null]
+  price bigint [not null]
+  duration_days int [not null]
+  total_sessions int [not null]
+  description text
+  is_active boolean [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table subscriptions {
+  id text [pk]
+  user_id text [not null]
+  membership_plan_id text [not null]
+  home_branch_id text [not null]
+  status text [not null]
+  started_at timestamptz [not null]
+  expires_at timestamptz [not null]
+  total_sessions int [not null]
+  sessions_used int [not null]
+  sessions_remaining int [not null]
+  activated_by text [not null]
+  activated_at timestamptz [not null]
+}
+
+Table subscription_status_history {
+  id text [pk]
+  subscription_id text [not null]
+  from_status text
+  to_status text [not null]
+  changed_by text [not null]
+  reason text
+  created_at timestamptz [not null]
+}
+
+Table member_check_ins {
+  id text [pk]
+  user_id text [not null]
+  branch_id text [not null]
+  subscription_id text
+  check_in_time timestamptz [not null]
+  created_by text
+  created_at timestamptz [not null]
+}
+
+// ── External stubs ────────────────────────────────────────────
+Table users [note: "external · domain 01"] {
+  id text [pk]
+}
+
+Table branches [note: "external · domain 02"] {
+  id text [pk]
+}
+
+// ── Internal relationships ────────────────────────────────────
+Ref: subscriptions.membership_plan_id > membership_plans.id
+Ref: subscription_status_history.subscription_id > subscriptions.id
+Ref: member_check_ins.subscription_id > subscriptions.id
+
+// ── Cross-domain relationships ────────────────────────────────
+Ref: member_check_ins.branch_id > branches.id
+Ref: member_check_ins.created_by > users.id
+Ref: member_check_ins.user_id > users.id
+Ref: subscription_status_history.changed_by > users.id
+Ref: subscriptions.activated_by > users.id
+Ref: subscriptions.home_branch_id > branches.id
+Ref: subscriptions.user_id > users.id

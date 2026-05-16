@@ -1,0 +1,53 @@
+Project MYFIT_04_COURSE {
+  database_type: "PostgreSQL"
+  Note: "Domain 04 — Gói tập theo buổi (khóa học): packages, enrollments."
+}
+
+Table course_packages {
+  id text [pk]
+  code text [unique, not null]
+  name text [not null]
+  plan_type text [not null]
+  total_sessions int [not null]
+  price_per_session bigint [not null]
+  total_price bigint [not null]
+  description text
+  is_active boolean [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table course_enrollments {
+  id text [pk]
+  user_id text [not null]
+  course_package_id text [not null]
+  branch_id text [not null]
+  status text [not null]
+  enrolled_at timestamptz [not null]
+  started_at timestamptz
+  completed_at timestamptz
+  expires_at timestamptz
+  total_sessions int [not null]
+  sessions_attended int [not null]
+  sessions_remaining int [not null]
+  created_by text [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+// ── External stubs ────────────────────────────────────────────
+Table users [note: "external · domain 01"] {
+  id text [pk]
+}
+
+Table branches [note: "external · domain 02"] {
+  id text [pk]
+}
+
+// ── Internal relationships ────────────────────────────────────
+Ref: course_enrollments.course_package_id > course_packages.id
+
+// ── Cross-domain relationships ────────────────────────────────
+Ref: course_enrollments.branch_id > branches.id
+Ref: course_enrollments.created_by > users.id
+Ref: course_enrollments.user_id > users.id

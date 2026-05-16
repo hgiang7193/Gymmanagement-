@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -29,6 +29,32 @@ type MembershipPlan = {
 };
 
 const trialStatuses = ["BOOKED", "CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW"];
+
+const statusBadgeClass: Record<string, string> = {
+  BOOKED: "bg-blue-50 text-blue-700 border border-blue-200",
+  CONFIRMED: "bg-violet-50 text-violet-700 border border-violet-200",
+  COMPLETED: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  CANCELLED: "bg-slate-100 text-slate-600 border border-slate-200",
+  NO_SHOW: "bg-rose-50 text-rose-700 border border-rose-200",
+};
+
+const statusLabel: Record<string, string> = {
+  BOOKED: "Đã đặt",
+  CONFIRMED: "Đã xác nhận",
+  COMPLETED: "Hoàn thành",
+  CANCELLED: "Đã huỷ",
+  NO_SHOW: "Vắng mặt",
+  CONVERTED: "Đã chuyển đổi",
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const cls = statusBadgeClass[status] ?? "bg-slate-100 text-slate-600 border border-slate-200";
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${cls}`}>
+      {statusLabel[status] ?? status}
+    </span>
+  );
+}
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("vi-VN", {
@@ -69,11 +95,11 @@ export function ManagerTrialsPanel() {
       return response.data;
     },
     onSuccess: () => {
-      toast.success("Cap nhat trial status thanh cong");
+      toast.success("Cập nhật trạng thái tập thử thành công");
       void queryClient.invalidateQueries({ queryKey: ["manager-trials"] });
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Cap nhat trial status that bai";
+      const message = error instanceof Error ? error.message : "Cập nhật trạng thái thất bại";
       toast.error(message);
     },
   });
@@ -101,7 +127,7 @@ export function ManagerTrialsPanel() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      toast.success("Convert trial thanh member thanh cong");
+      toast.success("Chuyển đổi thành hội viên thành công");
       setConvertDraft((current) => ({
         ...current,
         [variables.trial.id]: { membershipPlanId: "", activationNotes: "", paymentConfirmationRef: "" },
@@ -109,7 +135,7 @@ export function ManagerTrialsPanel() {
       void queryClient.invalidateQueries({ queryKey: ["manager-trials"] });
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Convert trial that bai";
+      const message = error instanceof Error ? error.message : "Chuyển đổi thất bại";
       toast.error(message);
     },
   });
@@ -127,17 +153,17 @@ export function ManagerTrialsPanel() {
   }
 
   if (trialsQuery.isLoading) {
-    return <p className="text-sm text-slate-600">Dang tai trial bookings...</p>;
+    return <p className="text-sm text-slate-600">Đang tải lịch tập thử...</p>;
   }
 
   if (trialsQuery.isError) {
-    return <p className="text-sm text-rose-600">Khong tai duoc trial bookings cho manager.</p>;
+    return <p className="text-sm text-rose-600">Không tải được lịch tập thử.</p>;
   }
 
   const trials = trialsQuery.data ?? [];
 
   if (!trials.length) {
-    return <p className="text-sm text-slate-600">Hien chua co trial nao trong branch scope cua manager.</p>;
+    return <p className="text-sm text-slate-600">Hiện chưa có lịch tập thử nào.</p>;
   }
 
   return (
@@ -147,66 +173,106 @@ export function ManagerTrialsPanel() {
         const canConvert = trial.status !== "CONVERTED";
 
         return (
-          <SurfaceCard key={trial.id} title={trial.fullName} description={`${trial.trialPlanName} - ${formatDate(trial.scheduledAt)}`}>
-            <div className="space-y-4">
+          <SurfaceCard
+            key={trial.id}
+            title={trial.fullName}
+            description={`${trial.trialPlanName} · ${formatDate(trial.scheduledAt)}`}
+          >
+            <div className="space-y-5">
+              {/* Current status badge */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Trạng thái hiện tại:</span>
+                <StatusBadge status={trial.status} />
+              </div>
+
               <dl className="grid gap-2 text-sm text-slate-700 md:grid-cols-2">
                 <div>
                   <dt className="text-slate-500">Email</dt>
                   <dd className="font-medium text-slate-950">{trial.email}</dd>
                 </div>
                 <div>
-                  <dt className="text-slate-500">Phone</dt>
+                  <dt className="text-slate-500">Điện thoại</dt>
                   <dd className="font-medium text-slate-950">{trial.phoneNumber}</dd>
                 </div>
-                <div>
-                  <dt className="text-slate-500">Branch ID</dt>
-                  <dd className="font-medium text-slate-950">{trial.branchId}</dd>
-                </div>
-                <div>
-                  <dt className="text-slate-500">Status</dt>
-                  <dd className="font-medium text-slate-950">{trial.status}</dd>
-                </div>
                 <div className="md:col-span-2">
-                  <dt className="text-slate-500">Notes</dt>
-                  <dd>{trial.notes || "Khong co ghi chu"}</dd>
+                  <dt className="text-slate-500">Ghi chú</dt>
+                  <dd>{trial.notes || "Không có ghi chú"}</dd>
                 </div>
               </dl>
 
+              {/* Status update */}
               <div className="space-y-2">
-                <div className="text-sm font-semibold text-slate-900">Update status</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cập nhật trạng thái</div>
                 <div className="flex flex-wrap gap-2">
-                  {trialStatuses.map((status) => (
-                    <button
-                      key={status}
-                      type="button"
-                      onClick={() => updateStatusMutation.mutate({ trialBookingId: trial.id, status })}
-                      disabled={updateStatusMutation.isPending}
-                      className="rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-800 transition hover:border-amber-400 hover:bg-amber-50 disabled:opacity-50"
-                    >
-                      {status}
-                    </button>
-                  ))}
+                  {trialStatuses.map((status) => {
+                    const isActive = trial.status === status;
+                    const cls = statusBadgeClass[status] ?? "bg-slate-100 text-slate-600 border border-slate-200";
+                    return (
+                      <button
+                        key={status}
+                        type="button"
+                        onClick={() => updateStatusMutation.mutate({ trialBookingId: trial.id, status })}
+                        disabled={updateStatusMutation.isPending}
+                        className={`rounded-full px-3 py-1 text-xs font-semibold transition-all disabled:opacity-50 ${
+                          isActive
+                            ? `${cls} ring-2 ring-offset-1 ring-current opacity-100`
+                            : `${cls} opacity-60 hover:opacity-100`
+                        }`}
+                      >
+                        {statusLabel[status] ?? status}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
+              {/* Convert form */}
               <form
-                className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                className="rounded-2xl border border-violet-100 bg-violet-50/40 p-4 space-y-3"
                 onSubmit={(event: FormEvent<HTMLFormElement>) => {
                   event.preventDefault();
                   convertMutation.mutate({ trial });
                 }}
               >
-                <div className="text-sm font-semibold text-slate-900">Convert trial</div>
-                <select value={draft.membershipPlanId} onChange={(event) => updateDraft(trial.id, { membershipPlanId: event.target.value })} className="rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                  <option value="">Chon membership plan</option>
+                <div className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-violet-500" />
+                  <span className="text-sm font-semibold text-violet-800">Chuyển đổi thành hội viên</span>
+                </div>
+
+                <select
+                  value={draft.membershipPlanId}
+                  onChange={(event) => updateDraft(trial.id, { membershipPlanId: event.target.value })}
+                  className="myfit-input w-full"
+                >
+                  <option value="">
+                    {plansQuery.isLoading ? "Đang tải gói tập..." : "Chọn gói tập"}
+                  </option>
                   {activePlans.map((plan) => (
-                    <option key={plan.id} value={plan.id}>{plan.name} ({plan.code})</option>
+                    <option key={plan.id} value={plan.id}>
+                      {plan.name} ({plan.code})
+                    </option>
                   ))}
                 </select>
-                <input value={draft.activationNotes} onChange={(event) => updateDraft(trial.id, { activationNotes: event.target.value })} className="rounded-2xl border border-slate-300 px-4 py-3 text-sm" placeholder="Activation notes (optional)" />
-                <input value={draft.paymentConfirmationRef} onChange={(event) => updateDraft(trial.id, { paymentConfirmationRef: event.target.value })} className="rounded-2xl border border-slate-300 px-4 py-3 text-sm" placeholder="Payment confirmation ref (optional)" />
-                <button type="submit" disabled={!canConvert || convertMutation.isPending || !draft.membershipPlanId} className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white disabled:bg-slate-400">
-                  {convertMutation.isPending ? "Dang convert..." : canConvert ? "Convert thanh member" : "Da convert"}
+
+                <input
+                  value={draft.activationNotes}
+                  onChange={(event) => updateDraft(trial.id, { activationNotes: event.target.value })}
+                  className="myfit-input w-full"
+                  placeholder="Ghi chú kích hoạt (tuỳ chọn)"
+                />
+                <input
+                  value={draft.paymentConfirmationRef}
+                  onChange={(event) => updateDraft(trial.id, { paymentConfirmationRef: event.target.value })}
+                  className="myfit-input w-full"
+                  placeholder="Mã xác nhận thanh toán (tuỳ chọn)"
+                />
+
+                <button
+                  type="submit"
+                  disabled={!canConvert || convertMutation.isPending || !draft.membershipPlanId}
+                  className="bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold rounded-2xl h-12 px-4 w-full transition-opacity disabled:opacity-40"
+                >
+                  {convertMutation.isPending ? "Đang xử lý..." : canConvert ? "Chuyển thành hội viên" : "Đã chuyển đổi"}
                 </button>
               </form>
             </div>

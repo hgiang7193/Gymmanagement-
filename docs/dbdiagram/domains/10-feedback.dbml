@@ -1,0 +1,75 @@
+Project MYFIT_10_FEEDBACK {
+  database_type: "PostgreSQL"
+  Note: "Domain 10 — Danh gia, ho tro va cau hinh he thong: reviews, support_requests, system_config."
+}
+
+Table reviews {
+  id text [pk]
+  reviewer_id text [not null]
+  target_type text [not null]
+  target_id text [not null]
+  rating int [not null]
+  status text [not null]
+  branch_id text
+  attendance_id text
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table review_moderation_logs {
+  id text [pk]
+  review_id text [not null]
+  actor_id text [not null]
+  from_status text [not null]
+  to_status text [not null]
+  created_at timestamptz [not null]
+}
+
+Table support_requests {
+  id text [pk]
+  member_id text [not null]
+  shift_id text
+  branch_id text [not null]
+  status text [not null]
+  resolved_by text
+  resolved_at timestamptz
+  created_at timestamptz [not null]
+}
+
+Table system_config {
+  key text [pk]
+  value text [not null]
+  updated_by text
+  updated_at timestamptz [not null]
+}
+
+// ── External stubs ────────────────────────────────────────────
+Table users [note: "external · domain 01"] {
+  id text [pk]
+}
+
+Table branches [note: "external · domain 02"] {
+  id text [pk]
+}
+
+Table class_attendance [note: "external · domain 05"] {
+  id text [pk]
+}
+
+Table shifts [note: "external · domain 05"] {
+  id text [pk]
+}
+
+// ── Internal relationships ────────────────────────────────────
+Ref: review_moderation_logs.review_id > reviews.id
+
+// ── Cross-domain relationships ────────────────────────────────
+Ref: review_moderation_logs.actor_id > users.id
+Ref: reviews.attendance_id > class_attendance.id
+Ref: reviews.branch_id > branches.id
+Ref: reviews.reviewer_id > users.id
+Ref: support_requests.branch_id > branches.id
+Ref: support_requests.member_id > users.id
+Ref: support_requests.resolved_by > users.id
+Ref: support_requests.shift_id > shifts.id
+Ref: system_config.updated_by > users.id

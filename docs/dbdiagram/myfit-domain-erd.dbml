@@ -1,0 +1,765 @@
+Project MYFIT_Domain_ERD {
+  database_type: "PostgreSQL"
+  Note: "Overview ERD for readability. Keep key columns (PK/FK/status/timestamps)."
+}
+
+// ==============================
+// AUTH & USER
+// ==============================
+Table users {
+  id text [pk]
+  email text [unique, not null]
+  status text [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table profiles {
+  id text [pk]
+  user_id text [not null]
+  full_name text
+  phone_number text
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table roles {
+  id text [pk]
+  code text [unique, not null]
+  name text [not null]
+}
+
+Table user_role_assignments {
+  id text [pk]
+  user_id text [not null]
+  role_id text [not null]
+  branch_id text
+  assigned_at timestamptz [not null]
+}
+
+Table refresh_sessions {
+  id text [pk]
+  user_id text [not null]
+  token text [unique, not null]
+  revoked_at timestamptz
+  created_at timestamptz [not null]
+}
+
+Table password_reset_tokens {
+  id text [pk]
+  user_id text [not null]
+  token text [unique, not null]
+  expires_at timestamptz [not null]
+  used_at timestamptz
+  created_at timestamptz [not null]
+}
+
+Table audit_logs {
+  id text [pk]
+  actor_user_id text
+  action_code text [not null]
+  entity_type text
+  entity_id text
+  branch_id text
+  created_at timestamptz [not null]
+}
+
+Table security_events {
+  id text [pk]
+  user_id text
+  event_type text [not null]
+  severity text [not null]
+  created_at timestamptz [not null]
+}
+
+// ==============================
+// ORG & BRANCHES
+// ==============================
+Table organizations {
+  id text [pk]
+  name text [not null]
+  tax_id text
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table branches {
+  id text [pk]
+  organization_id text
+  code text [unique, not null]
+  name text [not null]
+  status text [not null]
+  phone_number text
+  zalo_link text
+  zalo_phone text
+  contact_email text
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table branch_manager_assignments {
+  id text [pk]
+  branch_id text [not null]
+  manager_user_id text [not null]
+  active_from timestamptz [not null]
+  active_to timestamptz
+  created_at timestamptz [not null]
+}
+
+Table staff_profiles {
+  id text [pk]
+  user_id text [not null]
+  employee_code text [unique, not null]
+  job_title text [not null]
+  primary_branch_id text [not null]
+  status text [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+// ==============================
+// MEMBERSHIP & CLASS
+// ==============================
+Table membership_plans {
+  id text [pk]
+  code text [unique, not null]
+  name text [not null]
+  plan_type text [not null]
+  price bigint [not null]
+  duration_days int [not null]
+  total_sessions int [not null]
+  is_active boolean [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table subscriptions {
+  id text [pk]
+  user_id text [not null]
+  membership_plan_id text [not null]
+  home_branch_id text [not null]
+  status text [not null]
+  started_at timestamptz [not null]
+  expires_at timestamptz [not null]
+  sessions_remaining int [not null]
+  activated_by text [not null]
+  activated_at timestamptz [not null]
+}
+
+Table subscription_status_history {
+  id text [pk]
+  subscription_id text [not null]
+  from_status text
+  to_status text [not null]
+  changed_by text [not null]
+  created_at timestamptz [not null]
+}
+
+Table course_packages {
+  id text [pk]
+  code text [unique, not null]
+  name text [not null]
+  plan_type text [not null]
+  total_sessions int [not null]
+  total_price bigint [not null]
+  is_active boolean [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table course_enrollments {
+  id text [pk]
+  user_id text [not null]
+  course_package_id text [not null]
+  branch_id text [not null]
+  status text [not null]
+  enrolled_at timestamptz [not null]
+  sessions_attended int [not null]
+  sessions_remaining int [not null]
+  created_by text [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table shifts {
+  id text [pk]
+  branch_id text [not null]
+  shift_code text [not null]
+  date date [not null]
+  start_at timestamptz [not null]
+  end_at timestamptz [not null]
+  coach_capacity int [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table class_attendance {
+  id text [pk]
+  enrollment_id text [not null]
+  user_id text [not null]
+  shift_id text [not null]
+  status text [not null]
+  check_in_time timestamptz [not null]
+  created_by text
+  created_at timestamptz [not null]
+}
+
+Table trial_bookings {
+  id text [pk]
+  guest_user_id text
+  branch_id text [not null]
+  scheduled_at timestamptz [not null]
+  status text [not null]
+  converted_subscription_id text
+  converted_at timestamptz
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table trial_status_history {
+  id text [pk]
+  trial_booking_id text [not null]
+  from_status text
+  to_status text [not null]
+  changed_by text [not null]
+  created_at timestamptz [not null]
+}
+
+Table member_check_ins {
+  id text [pk]
+  user_id text [not null]
+  branch_id text [not null]
+  subscription_id text
+  check_in_time timestamptz [not null]
+  created_by text
+  created_at timestamptz [not null]
+}
+
+// ==============================
+// PT & TRAINING
+// ==============================
+Table pt_packages {
+  id text [pk]
+  code text [unique, not null]
+  name text [not null]
+  price bigint [not null]
+  total_sessions int [not null]
+  is_active boolean [not null]
+  created_at timestamptz [not null]
+}
+
+Table pt_enrollments {
+  id text [pk]
+  user_id text [not null]
+  pt_package_id text [not null]
+  branch_id text [not null]
+  status text [not null]
+  sessions_attended int [not null]
+  sessions_remaining int [not null]
+  enrolled_at timestamptz [not null]
+  created_by text [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table pt_sessions {
+  id text [pk]
+  pt_enrollment_id text [not null]
+  trainer_user_id text [not null]
+  branch_id text [not null]
+  scheduled_at timestamptz [not null]
+  status text [not null]
+  attended_at timestamptz
+  notes text
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table trainer_assignments {
+  id text [pk]
+  trainer_user_id text [not null]
+  shift_id text [not null]
+  assigned_by text
+  unassigned_at timestamptz
+  is_locked boolean [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+// ==============================
+// BILLING
+// ==============================
+Table promotions {
+  id text [pk]
+  code text [unique, not null]
+  name text [not null]
+  type text [not null]
+  value bigint [not null]
+  scope text [not null]
+  branch_id text
+  is_active boolean [not null]
+  created_by text [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table invoices {
+  id text [pk]
+  invoice_number text [unique, not null]
+  user_id text [not null]
+  branch_id text [not null]
+  total_amount bigint [not null]
+  discount_amount bigint [not null]
+  promotion_id text
+  status text [not null]
+  due_date timestamptz [not null]
+  cancelled_by text
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table payments {
+  id text [pk]
+  invoice_id text [not null]
+  amount bigint [not null]
+  payment_method text [not null]
+  status text [not null]
+  processed_at timestamptz [not null]
+  created_by text [not null]
+}
+
+Table invoice_items {
+  id text [pk]
+  invoice_id text [not null]
+  item_type text [not null]
+  item_id text [not null]
+  description text [not null]
+  unit_price bigint [not null]
+  quantity int [not null]
+  subtotal bigint [not null]
+  created_at timestamptz [not null]
+}
+
+Table refunds {
+  id text [pk]
+  invoice_id text [not null]
+  amount bigint [not null]
+  status text [not null]
+  processed_by text [not null]
+  processed_at timestamptz [not null]
+  created_at timestamptz [not null]
+}
+
+// ==============================
+// FACILITY
+// ==============================
+Table areas {
+  id text [pk]
+  branch_id text [not null]
+  name text [not null]
+  is_active boolean [not null]
+  created_by text [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table assets {
+  id text [pk]
+  branch_id text [not null]
+  area_id text
+  asset_code text [unique, not null]
+  name text [not null]
+  asset_type text [not null]
+  status text [not null]
+  created_by text [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table maintenance_tickets {
+  id text [pk]
+  asset_id text [not null]
+  branch_id text [not null]
+  title text [not null]
+  status text [not null]
+  reported_by text [not null]
+  assigned_to text
+  resolved_at timestamptz
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table maintenance_schedules {
+  id text [pk]
+  branch_id text [not null]
+  asset_id text
+  title text [not null]
+  frequency text [not null]
+  interval_days int [not null]
+  next_due_at timestamptz [not null]
+  is_active boolean [not null]
+  created_by text [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table maintenance_schedule_runs {
+  id text [pk]
+  schedule_id text [not null]
+  ticket_id text
+  triggered_at timestamptz [not null]
+  triggered_by text
+}
+
+// ==============================
+// MEAL & HEALTH
+// ==============================
+Table member_health_profiles {
+  id text [pk]
+  user_id text [not null]
+  primary_goal text
+  activity_level text
+  target_weight_kg numeric
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table member_weight_logs {
+  id text [pk]
+  user_id text [not null]
+  weight_kg numeric [not null]
+  measured_at timestamptz [not null]
+  created_by text [not null]
+  created_at timestamptz [not null]
+}
+
+Table member_body_measurements {
+  id text [pk]
+  user_id text [not null]
+  shift_id text
+  measurement_type text [not null]
+  value numeric [not null]
+  measured_at timestamptz [not null]
+  created_by text [not null]
+  is_locked boolean [not null]
+  created_at timestamptz [not null]
+}
+
+Table member_nutrition_goals {
+  id text [pk]
+  user_id text [not null]
+  daily_calories_target int [not null]
+  goal_type text [not null]
+  activity_level text [not null]
+  created_by text [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table daily_meal_plans {
+  id text [pk]
+  user_id text [not null]
+  plan_date date [not null]
+  total_calories int [not null]
+  status text [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table meals {
+  id text [pk]
+  daily_meal_plan_id text [not null]
+  meal_type text [not null]
+  meal_name text [not null]
+  calories int [not null]
+  source text [not null]
+  recipe_id text
+  created_at timestamptz [not null]
+}
+
+Table meal_items {
+  id text [pk]
+  meal_id text [not null]
+  item_name text [not null]
+  quantity numeric [not null]
+  unit text [not null]
+  calories numeric [not null]
+  created_at timestamptz [not null]
+}
+
+Table recipes {
+  id text [pk]
+  name text [not null]
+  category text [not null]
+  difficulty_level text [not null]
+  calories_per_serving int [not null]
+  is_active boolean [not null]
+  created_by text [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table recipe_ingredients {
+  id text [pk]
+  recipe_id text [not null]
+  ingredient_name text [not null]
+  quantity numeric [not null]
+  unit text [not null]
+  calories numeric [not null]
+  created_at timestamptz [not null]
+}
+
+Table meal_consumption_logs {
+  id text [pk]
+  user_id text [not null]
+  meal_id text
+  consumed_at timestamptz [not null]
+  logged_by text [not null]
+  created_at timestamptz [not null]
+}
+
+Table ai_meal_generation_logs {
+  id text [pk]
+  user_id text [not null]
+  request_date date [not null]
+  ai_model text [not null]
+  success boolean [not null]
+  daily_meal_plan_id text
+  created_at timestamptz [not null]
+}
+
+// ==============================
+// SUPPORT & FEEDBACK
+// ==============================
+Table reviews {
+  id text [pk]
+  reviewer_id text [not null]
+  target_type text [not null]
+  target_id text [not null]
+  rating int [not null]
+  status text [not null]
+  branch_id text
+  attendance_id text
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table review_moderation_logs {
+  id text [pk]
+  review_id text [not null]
+  actor_id text [not null]
+  from_status text [not null]
+  to_status text [not null]
+  created_at timestamptz [not null]
+}
+
+Table support_requests {
+  id text [pk]
+  member_id text [not null]
+  shift_id text
+  branch_id text [not null]
+  status text [not null]
+  resolved_by text
+  resolved_at timestamptz
+  created_at timestamptz [not null]
+}
+
+Table system_config {
+  key text [pk]
+  value text [not null]
+  updated_by text
+  updated_at timestamptz [not null]
+}
+
+// ==============================
+// TABLE GROUPS (CLUSTERS)
+// ==============================
+TableGroup "AUTH & USER" {
+  users
+  profiles
+  roles
+  user_role_assignments
+  refresh_sessions
+  password_reset_tokens
+  audit_logs
+  security_events
+}
+
+TableGroup "ORG & BRANCHES" {
+  organizations
+  branches
+  branch_manager_assignments
+  staff_profiles
+}
+
+TableGroup "MEMBERSHIP & CLASS" {
+  membership_plans
+  subscriptions
+  subscription_status_history
+  course_packages
+  course_enrollments
+  shifts
+  class_attendance
+  trial_bookings
+  trial_status_history
+  member_check_ins
+}
+
+TableGroup "PT & TRAINING" {
+  pt_packages
+  pt_enrollments
+  pt_sessions
+  trainer_assignments
+}
+
+TableGroup "BILLING" {
+  promotions
+  invoices
+  invoice_items
+  payments
+  refunds
+}
+
+TableGroup "FACILITY" {
+  areas
+  assets
+  maintenance_tickets
+  maintenance_schedules
+  maintenance_schedule_runs
+}
+
+TableGroup "MEAL & HEALTH" {
+  member_health_profiles
+  member_weight_logs
+  member_body_measurements
+  member_nutrition_goals
+  daily_meal_plans
+  meals
+  meal_items
+  recipes
+  recipe_ingredients
+  meal_consumption_logs
+  ai_meal_generation_logs
+}
+
+TableGroup "SUPPORT & FEEDBACK" {
+  reviews
+  review_moderation_logs
+  support_requests
+  system_config
+}
+
+// ==============================
+// RELATIONSHIPS
+// ==============================
+Ref: profiles.user_id > users.id
+Ref: user_role_assignments.user_id > users.id
+Ref: user_role_assignments.role_id > roles.id
+Ref: user_role_assignments.branch_id > branches.id
+Ref: refresh_sessions.user_id > users.id
+Ref: password_reset_tokens.user_id > users.id
+Ref: audit_logs.actor_user_id > users.id
+Ref: audit_logs.branch_id > branches.id
+Ref: security_events.user_id > users.id
+
+Ref: branches.organization_id > organizations.id
+Ref: branch_manager_assignments.branch_id > branches.id
+Ref: branch_manager_assignments.manager_user_id > users.id
+Ref: staff_profiles.user_id > users.id
+Ref: staff_profiles.primary_branch_id > branches.id
+
+Ref: subscriptions.user_id > users.id
+Ref: subscriptions.membership_plan_id > membership_plans.id
+Ref: subscriptions.home_branch_id > branches.id
+Ref: subscriptions.activated_by > users.id
+Ref: subscription_status_history.subscription_id > subscriptions.id
+Ref: subscription_status_history.changed_by > users.id
+
+Ref: course_enrollments.user_id > users.id
+Ref: course_enrollments.course_package_id > course_packages.id
+Ref: course_enrollments.branch_id > branches.id
+Ref: course_enrollments.created_by > users.id
+Ref: shifts.branch_id > branches.id
+Ref: class_attendance.enrollment_id > course_enrollments.id
+Ref: class_attendance.user_id > users.id
+Ref: class_attendance.shift_id > shifts.id
+Ref: class_attendance.created_by > users.id
+Ref: trial_bookings.guest_user_id > users.id
+Ref: trial_bookings.branch_id > branches.id
+Ref: trial_bookings.converted_subscription_id > subscriptions.id
+Ref: trial_status_history.trial_booking_id > trial_bookings.id
+Ref: trial_status_history.changed_by > users.id
+Ref: member_check_ins.user_id > users.id
+Ref: member_check_ins.branch_id > branches.id
+Ref: member_check_ins.subscription_id > subscriptions.id
+Ref: member_check_ins.created_by > users.id
+
+Ref: pt_enrollments.user_id > users.id
+Ref: pt_enrollments.pt_package_id > pt_packages.id
+Ref: pt_enrollments.branch_id > branches.id
+Ref: pt_enrollments.created_by > users.id
+Ref: pt_sessions.pt_enrollment_id > pt_enrollments.id
+Ref: pt_sessions.trainer_user_id > users.id
+Ref: pt_sessions.branch_id > branches.id
+Ref: trainer_assignments.trainer_user_id > users.id
+Ref: trainer_assignments.shift_id > shifts.id
+Ref: trainer_assignments.assigned_by > users.id
+
+Ref: promotions.branch_id > branches.id
+Ref: promotions.created_by > users.id
+Ref: invoices.user_id > users.id
+Ref: invoices.branch_id > branches.id
+Ref: invoices.promotion_id > promotions.id
+Ref: invoices.cancelled_by > users.id
+Ref: invoice_items.invoice_id > invoices.id
+Ref: payments.invoice_id > invoices.id
+Ref: payments.created_by > users.id
+Ref: refunds.invoice_id > invoices.id
+Ref: refunds.processed_by > users.id
+
+Ref: areas.branch_id > branches.id
+Ref: areas.created_by > users.id
+Ref: assets.branch_id > branches.id
+Ref: assets.area_id > areas.id
+Ref: assets.created_by > users.id
+Ref: maintenance_tickets.asset_id > assets.id
+Ref: maintenance_tickets.branch_id > branches.id
+Ref: maintenance_tickets.reported_by > users.id
+Ref: maintenance_tickets.assigned_to > users.id
+Ref: maintenance_schedules.branch_id > branches.id
+Ref: maintenance_schedules.asset_id > assets.id
+Ref: maintenance_schedules.created_by > users.id
+Ref: maintenance_schedule_runs.schedule_id > maintenance_schedules.id
+Ref: maintenance_schedule_runs.ticket_id > maintenance_tickets.id
+Ref: maintenance_schedule_runs.triggered_by > users.id
+
+Ref: member_health_profiles.user_id > users.id
+Ref: member_weight_logs.user_id > users.id
+Ref: member_weight_logs.created_by > users.id
+Ref: member_body_measurements.user_id > users.id
+Ref: member_body_measurements.shift_id > shifts.id
+Ref: member_body_measurements.created_by > users.id
+Ref: member_nutrition_goals.user_id > users.id
+Ref: member_nutrition_goals.created_by > users.id
+Ref: daily_meal_plans.user_id > users.id
+Ref: meals.daily_meal_plan_id > daily_meal_plans.id
+Ref: meals.recipe_id > recipes.id
+Ref: meal_items.meal_id > meals.id
+Ref: recipes.created_by > users.id
+Ref: recipe_ingredients.recipe_id > recipes.id
+Ref: meal_consumption_logs.user_id > users.id
+Ref: meal_consumption_logs.meal_id > meals.id
+Ref: meal_consumption_logs.logged_by > users.id
+Ref: ai_meal_generation_logs.user_id > users.id
+Ref: ai_meal_generation_logs.daily_meal_plan_id > daily_meal_plans.id
+
+Ref: reviews.reviewer_id > users.id
+Ref: reviews.branch_id > branches.id
+Ref: reviews.attendance_id > class_attendance.id
+Ref: review_moderation_logs.review_id > reviews.id
+Ref: review_moderation_logs.actor_id > users.id
+Ref: support_requests.member_id > users.id
+Ref: support_requests.shift_id > shifts.id
+Ref: support_requests.branch_id > branches.id
+Ref: support_requests.resolved_by > users.id
+Ref: system_config.updated_by > users.id

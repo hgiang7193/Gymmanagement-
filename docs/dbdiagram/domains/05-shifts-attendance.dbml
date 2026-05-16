@@ -1,0 +1,63 @@
+Project MYFIT_05_SHIFTS_ATTENDANCE {
+  database_type: "PostgreSQL"
+  Note: "Domain 05 — Ca tập và điểm danh lớp học: shifts, trainer_assignments, class_attendance."
+}
+
+Table shifts {
+  id text [pk]
+  branch_id text [not null]
+  shift_code text [not null]
+  date date [not null]
+  start_at timestamptz [not null]
+  end_at timestamptz [not null]
+  coach_capacity int [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table trainer_assignments {
+  id text [pk]
+  trainer_user_id text [not null]
+  shift_id text [not null]
+  assigned_by text
+  unassigned_at timestamptz
+  is_locked boolean [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table class_attendance {
+  id text [pk]
+  enrollment_id text [not null]
+  user_id text [not null]
+  shift_id text [not null]
+  status text [not null]
+  check_in_time timestamptz [not null]
+  created_by text
+  created_at timestamptz [not null]
+}
+
+// ── External stubs ────────────────────────────────────────────
+Table users [note: "external · domain 01"] {
+  id text [pk]
+}
+
+Table branches [note: "external · domain 02"] {
+  id text [pk]
+}
+
+Table course_enrollments [note: "external · domain 04"] {
+  id text [pk]
+}
+
+// ── Internal relationships ────────────────────────────────────
+Ref: trainer_assignments.shift_id > shifts.id
+Ref: class_attendance.shift_id > shifts.id
+
+// ── Cross-domain relationships ────────────────────────────────
+Ref: class_attendance.created_by > users.id
+Ref: class_attendance.enrollment_id > course_enrollments.id
+Ref: class_attendance.user_id > users.id
+Ref: shifts.branch_id > branches.id
+Ref: trainer_assignments.assigned_by > users.id
+Ref: trainer_assignments.trainer_user_id > users.id

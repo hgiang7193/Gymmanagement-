@@ -18,10 +18,10 @@
   --gray-500: #6b7280;
   --rose-error: #fb7185;
 
-  --background: var(--off-white);
+  --background: var(--pastel-pink);
   --foreground: var(--black);
-  --body-font: var(--font-inter), "Segoe UI", sans-serif;
-  --accent-font: var(--font-space-grotesk), "Segoe UI", sans-serif;
+  --body-font: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --accent-font: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
 
   --radius-card: 16px;
   --radius-button: 12px;
@@ -37,7 +37,8 @@ html {
 
 body {
   min-height: 100vh;
-  background: var(--background);
+  background: linear-gradient(135deg, var(--pastel-pink) 0%, var(--off-white) 100%);
+  background-attachment: fixed;
   color: var(--foreground);
   font-family: var(--body-font);
   text-rendering: optimizeLegibility;
@@ -128,9 +129,9 @@ code {
 
 .myfit-surface {
   border-radius: var(--radius-card);
-  border: 1px solid var(--gray-100);
+  border: 1px solid var(--blush);
   background: var(--white);
-  box-shadow: var(--card-shadow);
+  box-shadow: 0 4px 24px rgba(255, 182, 193, 0.15); /* Soft pink shadow */
 }
 
 .myfit-muted {
@@ -138,9 +139,65 @@ code {
 }
 
 .myfit-sticky-filter {
-  background: rgba(255, 255, 255, 0.85);
+  background: linear-gradient(180deg, rgba(255, 248, 250, 0.94) 0%, rgba(255, 240, 245, 0.88) 100%);
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--gray-100);
+  border-bottom: 1px solid var(--blush);
+}
+
+/* Segmented / pill tab bars (pastel pink chrome) */
+.myfit-tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 1rem;
+  border: 1px solid var(--blush);
+  background: linear-gradient(180deg, rgba(255, 245, 248, 0.98) 0%, rgba(255, 232, 240, 0.9) 100%);
+  padding: 0.5rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.myfit-tab-pill {
+  border-radius: 0.75rem;
+  border: none;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  color: var(--charcoal);
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 1px 2px rgba(255, 107, 157, 0.08);
+  transition: background var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.myfit-tab-pill:hover:not(.myfit-tab-pill--active) {
+  background: rgba(255, 107, 157, 0.12);
+  color: var(--deep-pink);
+}
+
+.myfit-tab-pill--active {
+  background: linear-gradient(135deg, var(--primary-pink) 0%, var(--deep-pink) 100%);
+  color: var(--white);
+  box-shadow: 0 4px 14px rgba(255, 107, 157, 0.32);
+}
+
+.myfit-tab-pill--ghost {
+  background: transparent;
+  box-shadow: none;
+  border: 1px solid rgba(255, 182, 193, 0.65);
+}
+
+.myfit-tab-pill--ghost:hover:not(.myfit-tab-pill--active) {
+  background: rgba(255, 107, 157, 0.08);
+}
+
+/* Full-width underline tabs (e.g. member profile) */
+.myfit-tab-strip {
+  display: flex;
+  background: linear-gradient(180deg, rgba(255, 248, 250, 0.98) 0%, rgba(255, 236, 242, 0.92) 100%);
+  border-bottom: 2px solid var(--blush);
 }
 
 @keyframes shake {

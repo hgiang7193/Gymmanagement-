@@ -16,7 +16,9 @@ class RefreshAccessTokenUseCase {
     }
 
     const primaryRole = (await this.deps.roleAssignmentRepository.findPrimaryRoleForUser(session.userId)) ?? 'GUEST';
-    const branchIds = await this.deps.branchManagerAssignmentRepository.listBranchIdsForManager(session.userId);
+    const managerBranchIds = await this.deps.branchManagerAssignmentRepository.listBranchIdsForManager(session.userId);
+    const roleBranchIds = await this.deps.roleAssignmentRepository.listBranchIdsForUser(session.userId);
+    const branchIds = [...new Set([...managerBranchIds, ...roleBranchIds])];
     await this.deps.refreshSessionRepository.revokeById(session.id, now);
     const newSessionId = this.deps.idGenerator.next('session');
     const refreshToken = await this.deps.tokenService.issueRefreshToken({ sessionId: newSessionId, userId: session.userId });

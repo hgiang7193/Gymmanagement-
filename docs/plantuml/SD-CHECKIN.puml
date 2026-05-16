@@ -1,0 +1,119 @@
+@startuml SD-CHECKIN-FLOW
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #F8F9FA
+skinparam defaultFontSize 11
+skinparam ParticipantFontStyle bold
+
+title UC-MEMBER-03: Member Self Check-in + Weight Log (Atomic)\n(Sequence Diagram)
+
+actor Member as member
+participant "Frontend\n(Check-in UI)" as frontend
+participant "CheckIn\nController" as controller
+participant "MemberSelfCheckIn\nUseCase" as service
+participant "ShiftRepository" as shiftRepo
+participant "CourseEnrollment\nRepository" as enrollRepo
+participant "ClassAttendance\nRepository" as attendRepo
+database "PostgreSQL\n(Transaction)" as db
+
+== 1. Xác thực & Gửi yêu cầu ==
+member -> frontend: Nhập cân nặng hôm nay\nvà chọn ca học
+activate frontend
+
+frontend -> controller: POST /api/gym/check-in\n{ userId, shiftId, branchId, weightKg }
+activate controller
+
+note left of controller
+  JWT Middleware kiểm tra:
+  1. Token hợp lệ?
+  2. role = MEMBER?
+end note
+
+controller -> service: execute({ userId, shiftId,\n branchId, weightKg })
+activate service
+
+== 2. Validation ==
+service -> shiftRepo: findById(shiftId)
+activate shiftRepo
+shiftRepo -> db: SELECT * FROM shifts\nWHERE id = $1
+db --> shiftRepo: shift record
+shiftRepo --> service: shift { startAt, endAt }
+deactivate shiftRepo
+
+service -> service: Kiểm tra cửa sổ thời gian\n(BR-SHIFT-01):\n now >= startAt - 30min  →  OK\n now <= endAt            →  OK
+
+alt Ca chưa mở hoặc đã kết thúc
+  service --> controller: Error: SHIFT_NOT_STARTED\n           hoặc SHIFT_ALREADY_ENDED
+  controller --> frontend: 400 Bad Request
+  frontend --> member: "Ca học chưa mở\nhoặc đã kết thúc"
+end
+
+service -> enrollRepo: findActiveByUser(userId)
+activate enrollRepo
+enrollRepo -> db: SELECT * FROM course_enrollments\nWHERE user_id = $1\nAND status = 'ACTIVE'\nLIMIT 1
+db --> enrollRepo: enrollment record
+enrollRepo --> service: enrollment { id, sessionsRemaining }
+deactivate enrollRepo
+
+alt Không có enrollment hoặc hết buổi
+  service --> controller: Error: NO_ACTIVE_ENROLLMENT\n           hoặc NO_SESSIONS_REMAINING
+  controller --> frontend: 403 Forbidden
+  frontend --> member: "Không có gói tập hiệu lực\nhoặc đã hết buổi"
+end
+
+service -> attendRepo: findByUserAndShift(userId, shiftId)
+activate attendRepo
+attendRepo -> db: SELECT id FROM class_attendance\nWHERE user_id=$1 AND shift_id=$2\nLIMIT 1
+db --> attendRepo: null (chưa check-in)
+attendRepo --> service: null
+deactivate attendRepo
+
+alt Đã check-in trước đó
+  service --> controller: Error: DUPLICATE_CHECKIN
+  controller --> frontend: 409 Conflict
+  frontend --> member: "Bạn đã check-in ca này rồi"
+end
+
+== 3. Giao dịch nguyên tử (Atomic Transaction) ==
+note over service, db
+  BR-CHECKIN-03: weight log + attendance
+  phải được tạo trong cùng 1 transaction
+end note
+
+service -> db: BEGIN
+activate db
+
+service -> db: INSERT INTO member_weight_logs\n(id, user_id, weight_kg, measured_at,\n measurement_source, created_by, created_at)\nVALUES ($1, $2, $3, $4, 'manual', $2, $5)
+db --> service: weight log created
+
+service -> db: INSERT INTO class_attendance\n(id, enrollment_id, user_id, shift_id,\n branch_id, attended_at, check_in_time,\n status, created_by, proxy_checkin)\nVALUES ($1,$2,$3,$4,$5,$6,$6,'PRESENT',$3,false)
+db --> service: attendance created
+
+note right of db
+  DB Trigger (migration 004):
+  khi INSERT class_attendance thành công
+  → AUTO-DECREMENT sessions_remaining
+     và INCREMENT sessions_attended
+     trong bảng course_enrollments
+end note
+
+service -> db: COMMIT
+deactivate db
+
+== 4. Lấy kết quả cập nhật ==
+service -> enrollRepo: findById(enrollment.id)
+enrollRepo -> db: SELECT sessions_remaining,\n sessions_attended, total_sessions\nFROM course_enrollments WHERE id=$1
+db --> enrollRepo: updated counts
+enrollRepo --> service: { sessionsRemaining, sessionsAttended }
+
+service --> controller: {\n  attendanceId, weightLogId,\n  userId, shiftId, branchId,\n  checkInTime, weightKg,\n  sessionsRemaining,\n  sessionsAttended,\n  totalSessions\n}
+deactivate service
+
+controller --> frontend: 201 Created + result
+deactivate controller
+
+== 5. Hiển thị kết quả ==
+frontend --> member: ✅ Check-in thành công!\n⚖️  Cân nặng: X kg ghi nhận\n📊 Buổi còn lại: Y / Z\n⏰ Giờ check-in: HH:MM
+deactivate frontend
+
+@enduml

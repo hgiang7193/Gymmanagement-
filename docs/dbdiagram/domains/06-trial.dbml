@@ -1,0 +1,47 @@
+Project MYFIT_06_TRIAL {
+  database_type: "PostgreSQL"
+  Note: "Domain 06 — Tập thử và chuyển đổi: trial_bookings, trial_status_history."
+}
+
+Table trial_bookings {
+  id text [pk]
+  guest_user_id text
+  branch_id text [not null]
+  scheduled_at timestamptz [not null]
+  status text [not null]
+  converted_subscription_id text
+  converted_at timestamptz
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table trial_status_history {
+  id text [pk]
+  trial_booking_id text [not null]
+  from_status text
+  to_status text [not null]
+  changed_by text [not null]
+  created_at timestamptz [not null]
+}
+
+// ── External stubs ────────────────────────────────────────────
+Table users [note: "external · domain 01"] {
+  id text [pk]
+}
+
+Table branches [note: "external · domain 02"] {
+  id text [pk]
+}
+
+Table subscriptions [note: "external · domain 03"] {
+  id text [pk]
+}
+
+// ── Internal relationships ────────────────────────────────────
+Ref: trial_status_history.trial_booking_id > trial_bookings.id
+
+// ── Cross-domain relationships ────────────────────────────────
+Ref: trial_bookings.branch_id > branches.id
+Ref: trial_bookings.converted_subscription_id > subscriptions.id
+Ref: trial_bookings.guest_user_id > users.id
+Ref: trial_status_history.changed_by > users.id

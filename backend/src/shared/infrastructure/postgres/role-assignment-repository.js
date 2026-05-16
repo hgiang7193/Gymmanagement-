@@ -1,6 +1,6 @@
 const { SqlRepository } = require('./sql-repository');
 
-const ROLE_PRIORITY = ['ADMIN', 'MANAGER', 'MEMBER', 'GUEST'];
+const ROLE_PRIORITY = ['ADMIN', 'MANAGER', 'COACH', 'MEMBER', 'GUEST'];
 
 class PostgresRoleAssignmentRepository extends SqlRepository {
   async assign(roleAssignment) {

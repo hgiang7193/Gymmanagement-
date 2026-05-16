@@ -59,7 +59,8 @@ class PostgresInvoiceRepository extends SqlRepository {
   async findByBranchAndDate(branchId, date) {
     return this.manyMapped(
       `SELECT * FROM invoices
-       WHERE branch_id = $1 AND date_trunc('day', created_at) = $2::date
+       WHERE branch_id = $1
+         AND (created_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date = $2::date
        ORDER BY created_at DESC`,
       [branchId, date]
     );

@@ -24,23 +24,27 @@ class CreateInvoiceUseCase {
       if (!isManager) throw new Error('CROSS_BRANCH_ACCESS');
     }
 
+    const items = payload.items?.map(item => ({
+      id: this.idGenerator.generate(),
+      itemType: item.itemType,
+      itemId: item.itemId,
+      itemName: item.itemName,
+      unitPrice: item.unitPrice,
+      quantity: item.quantity || 1,
+      subtotal: item.unitPrice * (item.quantity || 1)
+    })) || [];
+
+    const computedTotal = items.reduce((sum, i) => sum + i.subtotal, 0);
+
     const invoice = {
       id: this.idGenerator.generate(),
       invoiceNumber: `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       userId: payload.userId,
       branchId: payload.branchId,
-      totalAmount: payload.totalAmount,
+      totalAmount: payload.totalAmount ?? computedTotal,
       status: 'pending',
       dueDate: payload.dueDate || this.clock.now(),
-      items: payload.items?.map(item => ({
-        id: this.idGenerator.generate(),
-        itemType: item.itemType,
-        itemId: item.itemId,
-        itemName: item.itemName,
-        unitPrice: item.unitPrice,
-        quantity: item.quantity || 1,
-        subtotal: item.unitPrice * (item.quantity || 1)
-      })) || [],
+      items,
       createdAt: this.clock.now(),
       updatedAt: this.clock.now()
     };

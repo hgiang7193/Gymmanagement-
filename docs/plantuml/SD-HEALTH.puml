@@ -1,0 +1,139 @@
+@startuml SD-HEALTH-TRACKING
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #F8F9FA
+skinparam defaultFontSize 11
+skinparam ParticipantFontStyle bold
+
+title UC-HEALTH: Xem Tiến Trình / Cập Nhật Hồ Sơ / Ghi Nhận Cân Nặng\n(Sequence Diagram)
+
+actor Member as member
+participant "Frontend\n(Health Tab)" as frontend
+participant "Health\nController" as controller
+participant "GetMemberProgress\nUseCase" as progressSvc
+participant "UpdateHealthProfile\nUseCase" as profileSvc
+participant "LogWeight\nUseCase" as weightSvc
+participant "HealthProfile\nRepository" as profileRepo
+participant "WeightLog\nRepository" as weightRepo
+participant "BodyMeasurement\nRepository" as bodyRepo
+database "PostgreSQL" as db
+
+== Luồng 1: Xem Tiến Trình Sức Khỏe ==
+member -> frontend: Mở tab Sức Khỏe
+activate frontend
+
+frontend -> controller: GET /api/health/progress\n{ userId } (từ JWT)
+activate controller
+
+note left of controller
+  JWT Middleware:
+  member chỉ xem được dữ liệu của mình
+  (userId từ token = userId trong query)
+end note
+
+controller -> progressSvc: execute({ userId })
+activate progressSvc
+
+progressSvc -> profileRepo: findByUserId(userId)
+activate profileRepo
+profileRepo -> db: SELECT * FROM member_health_profiles\nWHERE user_id = $1
+db --> profileRepo: profile record\n{ height_cm, primary_goal,\n  gender, medical_conditions }
+profileRepo --> progressSvc: profile (hoặc null)
+deactivate profileRepo
+
+progressSvc -> weightRepo: listByUserId(userId, limit=20)
+activate weightRepo
+weightRepo -> db: SELECT id, weight_kg, measured_at,\n  measurement_source\nFROM member_weight_logs\nWHERE user_id = $1\nORDER BY measured_at DESC\nLIMIT 20
+db --> weightRepo: weight log records
+weightRepo --> progressSvc: recentWeightLogs[]
+deactivate weightRepo
+
+progressSvc -> bodyRepo: listByUserId(userId, limit=50)
+activate bodyRepo
+bodyRepo -> db: SELECT measurement_type, value, unit,\n  measured_at\nFROM member_body_measurements\nWHERE user_id = $1\nORDER BY measured_at DESC\nLIMIT 50
+db --> bodyRepo: body measurement records
+bodyRepo --> progressSvc: recentBodyMeasurements[]
+deactivate bodyRepo
+
+progressSvc --> controller: {\n  profile: { heightCm, primaryGoal, ... },\n  recentWeightLogs: [...],\n  recentBodyMeasurements: [...]\n}
+deactivate progressSvc
+
+controller --> frontend: 200 OK + progress data
+deactivate controller
+
+frontend --> member: Hiển thị:\n📊 Cân nặng gần nhất: X kg\n📏 Chiều cao: Y cm\n🎯 Mục tiêu: [primary_goal]\n📈 Biểu đồ cân nặng 20 lần gần nhất\n📐 Số đo cơ thể
+deactivate frontend
+
+== Luồng 2: Cập Nhật Hồ Sơ Sức Khỏe ==
+member -> frontend: Nhấn [Chỉnh sửa]\nvà cập nhật chiều cao, mục tiêu...
+activate frontend
+
+frontend -> controller: PUT /api/health/profile\n{ userId, heightCm, primaryGoal,\n  gender, medicalConditions }
+activate controller
+
+controller -> profileSvc: execute({ userId, heightCm,\n primaryGoal, gender,\n medicalConditions, actorUserId })
+activate profileSvc
+
+profileSvc -> db: SELECT * FROM users WHERE id=$1
+db --> profileSvc: user found
+
+profileSvc -> profileRepo: findByUserId(userId)
+profileRepo -> db: SELECT * FROM member_health_profiles\nWHERE user_id=$1
+db --> profileRepo: existing profile (hoặc null)
+profileRepo --> profileSvc: profile
+
+alt Đã có hồ sơ (UPDATE)
+  profileSvc -> profileRepo: update(profile)
+  profileRepo -> db: UPDATE member_health_profiles\nSET height_cm=$1, primary_goal=$2,\n  gender=$3, medical_conditions=$4,\n  updated_at=$5\nWHERE user_id=$6
+  db --> profileRepo: updated
+else Chưa có hồ sơ (INSERT)
+  profileSvc -> profileRepo: create(newProfile)
+  profileRepo -> db: INSERT INTO member_health_profiles\n(id, user_id, height_cm, primary_goal,\n gender, medical_conditions,\n created_at, updated_at)
+  db --> profileRepo: created
+end
+
+profileSvc --> controller: updated profile record
+deactivate profileSvc
+
+controller --> frontend: 200 OK + profile
+deactivate controller
+
+frontend --> member: ✅ Hồ sơ đã cập nhật
+deactivate frontend
+
+== Luồng 3: Ghi Nhận Cân Nặng ==
+
+note over member, frontend
+  BR-CHECKIN-03: Cân nặng cũng được ghi tự động khi check-in.
+  Luồng này dành cho việc ghi thủ công từ tab Sức Khỏe.
+end note
+
+member -> frontend: Nhấn [+ Ghi cân nặng]\nnhập: weight_kg, ngày đo
+activate frontend
+
+frontend -> controller: POST /api/health/weight\n{ userId, weightKg, measuredAt,\n  measurementSource }
+activate controller
+
+controller -> weightSvc: execute({ userId, weightKg,\n measuredAt, measurementSource,\n actorUserId })
+activate weightSvc
+
+weightSvc -> db: SELECT id FROM users WHERE id=$1
+db --> weightSvc: user found
+
+weightSvc -> weightRepo: create(weightLog)
+activate weightRepo
+weightRepo -> db: INSERT INTO member_weight_logs\n(id, user_id, weight_kg,\n measured_at, measurement_source,\n created_by, created_at)\nVALUES ($1,$2,$3,$4,$5,$6,$7)
+db --> weightRepo: weight log created
+weightRepo --> weightSvc: log record
+deactivate weightRepo
+
+weightSvc --> controller: {\n  id, userId, weightKg,\n  measuredAt, measurementSource\n}
+deactivate weightSvc
+
+controller --> frontend: 201 Created + weight log
+deactivate controller
+
+frontend --> member: ✅ Đã ghi nhận cân nặng!\n⚖️  X kg lúc HH:MM DD/MM/YYYY\n[Xem biểu đồ] [Đóng]
+deactivate frontend
+
+@enduml

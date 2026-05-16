@@ -1,0 +1,463 @@
+\chapter{Triển khai hệ thống}
+
+% =========================================================
+\section{Thiết kế và mô hình hóa dữ liệu}
+% =========================================================
+\subsection{Các công cụ sử dụng}
+\begin{itemize}
+    \item \textbf{PostgreSQL 16} (phiên bản Alpine) — Hệ quản trị cơ sở dữ liệu quan hệ.
+    \item \textbf{Ngôn ngữ SQL thuần} để định nghĩa schema và migration.
+\end{itemize}
+\textbf{Lý do chọn PostgreSQL:} Hỗ trợ đầy đủ giao dịch ACID, partial unique index (thực thi ràng buộc nghiệp vụ như ``một chi nhánh chỉ có một Manager active''), kiểu \texttt{timestamptz} cho múi giờ, kiểu \texttt{jsonb} cho metadata linh hoạt, và trigger để tự động hóa logic nghiệp vụ. Đây là lựa chọn phổ biến cho ứng dụng doanh nghiệp yêu cầu toàn vẹn dữ liệu cao.
+
+\subsection{Thực hiện}
+\begin{itemize}
+    \item Lược đồ được định nghĩa trong file \texttt{schema.sql} duy nhất, tổ chức theo thứ tự phụ thuộc để đảm bảo khóa ngoại hợp lệ.
+    \item 33 bảng được chia thành các nhóm miền:
+    \begin{itemize}
+        \item Định danh và phân quyền: \texttt{users}, \texttt{profiles}, \texttt{roles}, \texttt{user\_role\_assignments}, \texttt{refresh\_sessions}.
+        \item Tổ chức: \texttt{organizations}, \texttt{branches}, \texttt{branch\_manager\_assignments}.
+        \item Gói tập và đăng ký: \texttt{membership\_plans}, \texttt{subscriptions}, \texttt{subscription\_status\_history}.
+        \item Vận hành phòng tập: \texttt{shifts}, \texttt{trainer\_assignments}, \texttt{class\_attendance}.
+        \item Thanh toán: \texttt{invoices}, \texttt{invoice\_items}, \texttt{payments}, \texttt{refunds}.
+        \item Sức khỏe: \texttt{member\_health\_profiles}, \texttt{member\_weight\_logs}, \texttt{member\_body\_measurements}.
+        \item Kiểm toán: \texttt{audit\_logs}, \texttt{security\_events}.
+    \end{itemize}
+    \item Các thay đổi bổ sung tính năng được quản lý qua 6 file migration đánh số tăng dần (002--007), mỗi file giải quyết một nhóm tính năng: ca tập và phân công HLV, đăng ký khóa học, tự động trừ buổi qua trigger, quản lý cơ sở vật chất, thông tin liên hệ chi nhánh.
+    \item \textbf{Trigger tự động hóa:} Migration 004 thêm trigger PostgreSQL tự động giảm \texttt{sessions\_remaining} và tăng \texttt{sessions\_attended} trong bảng \texttt{course\_enrollments} mỗi khi INSERT vào \texttt{class\_attendance} thành công — đảm bảo tính nhất quán mà không cần xử lý tại tầng ứng dụng.
+\end{itemize}
+
+% =========================================================
+\section{Xây dựng Backend API}
+% =========================================================
+\subsection{Các công cụ sử dụng}
+\begin{itemize}
+    \item \textbf{Node.js 22 LTS} — Môi trường runtime.
+    \item \textbf{Express.js 5.2.1} — Web framework.
+    \item \textbf{Ngôn ngữ JavaScript} (ES Modules).
+\end{itemize}
+\textbf{Lý do chọn Node.js + Express:} Mô hình event loop bất đồng bộ phù hợp với ứng dụng I/O-bound (nhiều truy vấn database, ít tính toán CPU). Express 5 cung cấp routing tối giản, middleware chain dễ kiểm soát, không áp đặt cấu trúc — thuận lợi tổ chức theo Clean Architecture.
+
+\subsection{Kiến trúc Clean Architecture}
+Backend được tổ chức thành ba lớp tách biệt, đảm bảo khả năng kiểm thử độc lập và thay thế từng thành phần:
+\begin{enumerate}
+    \item \textbf{Application layer} — Chứa các use case (ví dụ: \texttt{register-guest.js}, \texttt{record-payment.js}). Mỗi use case là một hàm async nhận dependencies qua tham số (dependency injection thủ công), không import trực tiếp infrastructure.
+    \item \textbf{Infrastructure layer} — 34 repository class kế thừa từ \texttt{SqlRepository}. Mọi truy vấn sử dụng parameterized query (\texttt{\$1, \$2}) để ngăn SQL injection. Kết quả tự động chuyển từ snake\_case sang camelCase.
+    \item \textbf{Shared layer} — Các dịch vụ dùng chung: \texttt{JwtTokenService} (JWT HS256), \texttt{Argon2PasswordHasher} (Argon2id, OWASP-compliant), \texttt{PostgresPool} (connection pool tối đa 10), \texttt{Clock}, \texttt{IdGenerator} (UUID v4).
+\end{enumerate}
+
+\subsection{Thư viện chính và mục đích}
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Thư viện} & \textbf{Phiên bản} & \textbf{Mục đích} \\ \hline
+express           & 5.2.1  & Web framework, routing, middleware \\
+pg                & 8.20.0 & PostgreSQL client, connection pool (max 10) \\
+argon2            & 0.44.0 & Băm mật khẩu Argon2id (OWASP) \\
+jsonwebtoken      & 9.0.3  & Tạo và xác minh JWT (HS256) \\
+cors              & 2.8.6  & Xử lý CORS \\
+dotenv            & 17.4.0 & Đọc biến môi trường từ .env \\ \hline
+\end{tabular}
+\caption{Các thư viện chính của backend}
+\end{table}
+
+\subsection{Quy trình xây dựng từng domain}
+Với mỗi nhóm tính năng: (1)~viết schema/migration SQL, (2)~tạo repository class, (3)~viết use case, (4)~đăng ký route trong \texttt{app.js}.
+
+\subsection{Xử lý transaction nguyên tử}
+Các nghiệp vụ phức tạp (thanh toán + kích hoạt gói, check-in + ghi cân nặng, tạo nhân sự + gán role) dùng PostgreSQL transaction thủ công đảm bảo tính nguyên tử (atomicity):
+\begin{verbatim}
+const client = await pool.connect();
+try {
+    await client.query('BEGIN');
+    // các câu lệnh SQL trong cùng một transaction
+    await client.query('COMMIT');
+} catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+} finally {
+    client.release();
+}
+\end{verbatim}
+Ví dụ: khi hội viên check-in, hệ thống cùng lúc INSERT vào \texttt{member\_weight\_logs} và \texttt{class\_attendance} trong một transaction — nếu bất kỳ bước nào thất bại, toàn bộ được rollback.
+
+\subsection{Quản lý lỗi nhất quán}
+Mỗi route được bọc \texttt{asyncHandler} bắt lỗi async. Lỗi domain (BRANCH\_NOT\_FOUND, DUPLICATE\_CHECKIN, NO\_ACTIVE\_ENROLLMENT) được biểu diễn bằng \texttt{DomainError}, trả về HTTP response nhất quán với cấu trúc cố định:
+\begin{verbatim}
+{ data: null, error: { code, message }, meta: {} }
+\end{verbatim}
+Cấu trúc này giúp frontend xử lý lỗi đồng nhất mà không cần parse từng endpoint riêng biệt.
+
+% =========================================================
+\section{Luồng xử lý nghiệp vụ (Sơ đồ tuần tự)}
+% =========================================================
+Sơ đồ tuần tự (sequence diagram) thể hiện cách dữ liệu di chuyển qua 5 lớp của hệ thống: \textbf{Client → Controller → Use Case (Service) → Repository → Database}. Hai luồng quan trọng nhất được mô hình hóa chi tiết.
+
+\subsection{Luồng Check-in hội viên (UC-MEMBER-03)}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{figures/SD-CHECKIN.png}
+\caption{Sơ đồ tuần tự: Hội viên tự check-in và ghi cân nặng (UC-MEMBER-03)}
+\label{fig:sd-checkin}
+\end{figure}
+
+Luồng này bao gồm 5 giai đoạn chính:
+\begin{enumerate}
+    \item \textbf{Xác thực:} JWT Middleware kiểm tra token hợp lệ và vai trò MEMBER trước khi cho phép request tiếp tục.
+    \item \textbf{Validation:} Use case kiểm tra tuần tự: ca tập có đang trong cửa sổ hợp lệ không (30 phút trước khi bắt đầu đến khi kết thúc), hội viên có gói tập đang active không, đã check-in ca này chưa. Mỗi điều kiện vi phạm trả về mã lỗi cụ thể (SHIFT\_NOT\_STARTED, NO\_ACTIVE\_ENROLLMENT, DUPLICATE\_CHECKIN).
+    \item \textbf{Giao dịch nguyên tử:} INSERT đồng thời vào \texttt{member\_weight\_logs} và \texttt{class\_attendance} trong một transaction. Trigger tự động cập nhật \texttt{sessions\_remaining}.
+    \item \textbf{Truy vấn cập nhật:} Lấy số buổi còn lại sau khi commit.
+    \item \textbf{Phản hồi:} Trả về kết quả đầy đủ gồm attendanceId, weightLogId, sessionsRemaining cho frontend hiển thị.
+\end{enumerate}
+
+\subsection{Luồng tạo hóa đơn và thanh toán POS (UC-POS-01/02/03)}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{figures/SD-POS.png}
+\caption{Sơ đồ tuần tự: Tạo hóa đơn → Ghi nhận thanh toán → Kích hoạt gói (UC-POS)}
+\label{fig:sd-pos}
+\end{figure}
+
+Luồng POS bao gồm 4 bước chính:
+\begin{enumerate}
+    \item \textbf{Kiểm tra phạm vi:} Trước khi tạo hóa đơn, use case xác minh Manager thuộc chi nhánh đang thao tác qua \texttt{branch\_manager\_assignments} — đây là cơ chế cốt lõi ngăn xung đột dữ liệu đa chi nhánh.
+    \item \textbf{Tạo hóa đơn:} INSERT vào \texttt{invoices} và \texttt{invoice\_items}.
+    \item \textbf{Ghi nhận thanh toán:} Tính tổng đã trả, cập nhật trạng thái hóa đơn (partial/paid) trong transaction.
+    \item \textbf{Kích hoạt gói tự động:} Khi hóa đơn chuyển sang \texttt{paid}, hệ thống duyệt từng line item: gói tập → INSERT \texttt{subscriptions} + gán role MEMBER; khóa học → INSERT \texttt{course\_enrollments}. Mỗi thao tác đều ghi vào \texttt{audit\_logs}.
+\end{enumerate}
+
+% =========================================================
+\section{Phân quyền và bảo mật dữ liệu}
+% =========================================================
+\subsection{Mô hình RBAC 5 vai trò}
+Hệ thống định nghĩa 5 vai trò với phạm vi truy cập rõ ràng:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Vai trò} & \textbf{Phạm vi} & \textbf{Quyền tiêu biểu} \\ \hline
+ADMIN   & Toàn hệ thống    & Tạo chi nhánh, gán Manager, xem mọi báo cáo \\
+MANAGER & Chi nhánh được gán & Tạo hóa đơn, xem danh sách ca, báo cáo chi nhánh \\
+COACH   & Ca tập được phân công & Điểm danh, xem danh sách học viên \\
+MEMBER  & Chi nhánh home của hội viên & Check-in, xem gói tập, ghi cân nặng \\
+GUEST   & Chỉ tập thử & Đặt lịch tập thử \\
+\hline
+\end{tabular}
+\caption{Ma trận phân quyền 5 vai trò MYFIT}
+\end{table}
+
+\subsection{Cơ chế ngăn xung đột dữ liệu đa chi nhánh}
+Vấn đề đặt ra: Manager của chi nhánh A không được phép xem hoặc chỉnh sửa dữ liệu của chi nhánh B.
+
+Hệ thống giải quyết bằng \textbf{4 lớp bảo vệ}:
+
+\begin{enumerate}
+    \item \textbf{Database level:} Mọi bảng nghiệp vụ đều có cột \texttt{branch\_id} (foreign key đến \texttt{branches}). Index 2 cột \texttt{(branch\_id, user\_id)} đảm bảo truy vấn theo chi nhánh có độ phức tạp O(log n).
+    \item \textbf{Authorization middleware:} Mỗi request đến Manager endpoint được kiểm tra: \texttt{branch\_id} trong body/params phải khớp với chi nhánh được gán cho Manager đó trong \texttt{branch\_manager\_assignments}.
+    \item \textbf{Use case validation:} Use case gọi thêm \texttt{isManagerOfBranch(actorUserId, branchId)} trước khi thực thi — tầng bảo vệ thứ hai nếu middleware bị bỏ qua.
+    \item \textbf{Audit logging:} Mọi thao tác thành công và thất bại đều được ghi vào \texttt{audit\_logs} với \texttt{actor\_user\_id}, \texttt{action\_code}, \texttt{branch\_id}, \texttt{metadata\_json}. Cho phép truy vết toàn bộ lịch sử thao tác.
+\end{enumerate}
+
+\textbf{Kết quả thực tế:} Manager đăng nhập tại chi nhánh A gửi request lên endpoint của chi nhánh B sẽ nhận 403 Forbidden — bị chặn tại Middleware trước khi chạm đến database. Nỗ lực này đồng thời được ghi vào \texttt{security\_events}.
+
+\subsection{Bảo mật xác thực}
+\begin{itemize}
+    \item \textbf{JWT HS256:} Access token hết hạn sau 15 phút, refresh token hết hạn sau 7 ngày, lưu trong memory (không localStorage) để tránh XSS.
+    \item \textbf{Mật khẩu:} Băm bằng Argon2id — thuật toán được OWASP khuyến nghị cho lưu trữ mật khẩu, kháng cả GPU attack và side-channel attack.
+    \item \textbf{SQL Injection:} Ngăn chặn hoàn toàn bằng parameterized query (\texttt{\$1, \$2}) ở mọi repository.
+    \item \textbf{CORS:} Cấu hình chặt chẽ, chỉ cho phép origin của frontend.
+\end{itemize}
+
+% =========================================================
+\section{Xây dựng Frontend}
+% =========================================================
+\subsection{Các công cụ sử dụng}
+\begin{itemize}
+    \item \textbf{Next.js 16 (React 19), TypeScript 5, Tailwind CSS 4.}
+\end{itemize}
+\textbf{Lý do chọn Next.js:} Server-Side Rendering, file-based routing tổ chức theo vai trò (\texttt{/admin}, \texttt{/manager}, \texttt{/member}, \texttt{/coach}). Chế độ standalone output tạo server Node.js nhỏ gọn cho Docker.
+
+\textbf{Lý do TypeScript:} Kiểm tra kiểu tĩnh, giảm lỗi runtime khi làm việc với API response. Các kiểu dữ liệu được định nghĩa tập trung trong \texttt{/lib/api/types.ts}.
+
+\textbf{Lý do Tailwind CSS v4:} Utility-first, viết style trực tiếp trong JSX, phiên bản 4 tích hợp Lightning CSS và CSS custom properties, tốc độ build nhanh, không cần file cấu hình.
+
+\subsection{Thư viện chính}
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Thư viện} & \textbf{Phiên bản} & \textbf{Mục đích} \\ \hline
+@tanstack/react-query & 5.99.2 & Server state management, cache, invalidation \\
+jwt-decode            & 4.0.0  & Giải mã JWT phía client \\
+sonner                & 2.0.7  & Toast notification (thay thế alert/confirm) \\
+lucide-react          & 1.8.0  & Icon nhẹ, tree-shakeable \\
+clsx + tailwind-merge & --     & Kết hợp class Tailwind có điều kiện \\ \hline
+\end{tabular}
+\caption{Các thư viện chính của frontend}
+\end{table}
+
+\subsection{Cấu trúc frontend}
+\begin{itemize}
+    \item \textbf{Page/Panel pattern:} Mỗi trang trong \texttt{app/} là shell component, bao bọc ``panel'' component trong \texttt{components/features/} — tách biệt logic routing và logic nghiệp vụ.
+    \item \textbf{AuthProvider} (React Context): lưu token trong memory, tự động refresh token khi hết hạn, cung cấp hàm \texttt{authorizedRequest()} để gọi API kèm Bearer token.
+    \item \textbf{ProtectedPage:} Wrapper kiểm tra role trước khi render, redirect về trang phù hợp nếu không đủ quyền.
+    \item \textbf{Hệ thống design:} CSS custom properties (\texttt{--primary-pink}, \texttt{--deep-pink}, v.v.) kết hợp utility class tùy chỉnh (\texttt{.myfit-input}, \texttt{.myfit-btn-primary}) đảm bảo tính nhất quán giao diện toàn ứng dụng.
+\end{itemize}
+
+% =========================================================
+\section{Đóng gói và triển khai bằng Docker}
+% =========================================================
+\subsection{Các công cụ sử dụng}
+Docker Engine, Docker Compose, Alpine Linux.
+
+\textbf{Lý do chọn Docker:} Đảm bảo môi trường nhất quán giữa máy phát triển và production. Docker Compose khởi động toàn bộ stack (database, backend, frontend) bằng một lệnh duy nhất.
+
+\subsection{Chiến lược multi-stage build}
+\begin{itemize}
+    \item \textbf{Backend Dockerfile} (2 stage):
+    \begin{verbatim}
+# Stage deps
+FROM node:22-alpine AS deps
+WORKDIR /app
+COPY package.json ./
+RUN npm ci --omit=dev
+
+# Stage runtime
+FROM node:22-alpine
+RUN addgroup -S myfit && adduser -S myfit -G myfit
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+USER myfit
+CMD ["node", "src/app.js"]
+    \end{verbatim}
+
+    \item \textbf{Frontend Dockerfile} (3 stage):
+    \begin{verbatim}
+# Stage deps → builder → runtime
+FROM node:22-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+ARG NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+RUN npm run build
+
+FROM node:22-alpine
+RUN addgroup -S myfit && adduser -S myfit -G myfit
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+USER myfit
+CMD ["node", "server.js"]
+    \end{verbatim}
+\end{itemize}
+
+\subsection{Docker Compose orchestration}
+Ba service \texttt{postgres}, \texttt{backend}, \texttt{frontend} với dependency ordering:
+\begin{itemize}
+    \item \texttt{postgres} khởi động đầu tiên, tự động mount \texttt{schema.sql} vào \texttt{docker-entrypoint-initdb.d/}, health check \texttt{pg\_isready} mỗi 5 giây.
+    \item \texttt{backend} chỉ khởi động sau khi \texttt{postgres} healthy, nhận cấu hình qua biến môi trường.
+    \item \texttt{frontend} phụ thuộc \texttt{backend}, nhận \texttt{NEXT\_PUBLIC\_API\_BASE\_URL} tại build time.
+\end{itemize}
+
+\subsection{Quản lý biến môi trường}
+Tất cả giá trị nhạy cảm (mật khẩu DB, JWT secrets) lưu trong file \texttt{.env}, không commit Git. File \texttt{.env.example} kèm hướng dẫn sinh khóa 512-bit:
+\begin{verbatim}
+node -e "console.log(require('crypto').randomBytes(64).toString('base64url'))"
+\end{verbatim}
+
+\subsection{Dữ liệu khởi tạo}
+File \texttt{seed.js} tạo sẵn 27 tài khoản test gồm đủ 5 vai trò, 2 chi nhánh, các gói tập và gói PT mẫu. Chạy seed:
+\begin{verbatim}
+docker compose exec backend node src/db/seed.js
+\end{verbatim}
+
+% =========================================================
+\section{Kiểm thử và xác minh}
+% =========================================================
+\subsection{Kiểm thử đơn vị và tích hợp}
+Backend được kiểm thử bằng Jest với cấu hình isolation: mỗi test suite chạy trên transaction riêng, rollback sau khi kết thúc để đảm bảo tính độc lập. Các file kiểm thử được tổ chức theo nhóm nghiệp vụ:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|l|}
+\hline
+\textbf{File kiểm thử} & \textbf{Phạm vi kiểm thử} \\ \hline
+\texttt{auth-core.test.js}          & Đăng ký, đăng nhập, refresh token, đổi mật khẩu \\
+\texttt{auth-http.test.js}          & Luồng HTTP xác thực đầu cuối \\
+\texttt{admin-branch-http.test.js}  & Tạo, đóng, cập nhật chi nhánh \\
+\texttt{admin-roles-and-branch-lifecycle.test.js} & Phân quyền và vòng đời chi nhánh \\
+\texttt{trial-booking-http.test.js} & Đặt lịch tập thử, chuyển đổi hội viên \\
+\texttt{gym-operations-http.test.js} & Ca tập, điểm danh, override check-in \\
+\texttt{billing-http.test.js}       & Tạo hóa đơn, ghi thanh toán, kích hoạt gói \\
+\texttt{health-tracking-http.test.js} & Cập nhật hồ sơ sức khỏe, ghi cân nặng \\
+\texttt{runtime-bootstrap.test.js}  & Khởi động ứng dụng và kết nối database \\ \hline
+\end{tabular}
+\caption{Các file kiểm thử backend theo nhóm nghiệp vụ}
+\end{table}
+
+\subsection{Smoke test tự động đầu cuối}
+File \texttt{scripts/smoke-test-trial-booking.ts} (chạy bằng \texttt{node --experimental-strip-types}) thực hiện end-to-end luồng đặt trial:
+\begin{center}
+    Đăng nhập $\rightarrow$ Đặt lịch $\rightarrow$ Xác nhận $\rightarrow$ Kiểm tra trạng thái
+\end{center}
+Mỗi bước kiểm tra HTTP status code và cấu trúc response, in kết quả ra terminal với màu sắc phân biệt pass/fail.
+
+\subsection{Kiểm tra giao diện frontend}
+Truy cập \texttt{http://localhost:3001} với từng tài khoản seed theo vai trò, xác nhận:
+\begin{itemize}
+    \item Giao diện render đúng theo role (nav menu, accessible pages khác nhau cho mỗi vai trò).
+    \item Form gửi dữ liệu thành công, toast thông báo hiển thị.
+    \item Redirect về trang phù hợp khi truy cập không đủ quyền.
+    \item Luồng check-in, tạo hóa đơn, ghi cân nặng hoạt động end-to-end.
+\end{itemize}
+
+\subsection{Kiểm tra bảo mật (branch isolation)}
+Các test case kiểm tra phân quyền đa chi nhánh bao gồm:
+\begin{itemize}
+    \item Manager chi nhánh A thử tạo hóa đơn cho chi nhánh B → 403 Forbidden.
+    \item Hội viên truy cập dữ liệu hội viên khác → 403 Forbidden.
+    \item Token hết hạn → 401 Unauthorized, hệ thống tự động thử refresh.
+\end{itemize}
+
+% =========================================================
+\section{Tích hợp AI Chatbot tư vấn dinh dưỡng}
+% =========================================================
+\subsection{Bối cảnh và mục tiêu}
+Một trong những điểm khác biệt của MYFIT so với phần mềm quản lý phòng tập thông thường là khả năng cá nhân hóa trải nghiệm hội viên. Tính năng \textbf{AI Chatbot tư vấn dinh dưỡng} tận dụng dữ liệu sức khỏe đã được thu thập (cân nặng, số đo, mục tiêu) để tạo kế hoạch dinh dưỡng cá nhân hóa thông qua Large Language Model (LLM).
+
+\textbf{Cơ sở dữ liệu đã sẵn sàng:} Các bảng \texttt{member\_health\_profiles}, \texttt{member\_weight\_logs}, và \texttt{member\_body\_measurements} được thiết kế ngay từ đầu để làm nguồn đầu vào cho AI — đây là giai đoạn chuẩn bị dữ liệu (data preparation) cho tích hợp AI.
+
+\subsection{Kiến trúc tích hợp}
+Kiến trúc tích hợp AI tuân thủ nguyên tắc Clean Architecture hiện tại — AI API được gọi từ tầng Application, không ảnh hưởng tầng Infrastructure:
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{figures/AI-ARCHITECTURE.png}
+\caption{Kiến trúc tích hợp AI Chatbot vào hệ thống MYFIT}
+\label{fig:ai-arch}
+\end{figure}
+
+Luồng xử lý:
+\begin{enumerate}
+    \item Hội viên yêu cầu tư vấn dinh dưỡng qua giao diện.
+    \item Backend truy vấn dữ liệu sức khỏe hội viên từ database.
+    \item \textbf{PromptBuilder} xây dựng prompt có cấu trúc gồm: mục tiêu tập luyện, cân nặng hiện tại, lịch sử 30 ngày, chỉ số cơ thể.
+    \item Gọi AI API (Claude API hoặc OpenAI) với hệ thống prompt + context người dùng.
+    \item Validate và parse JSON response từ AI.
+    \item Lưu kết quả vào \texttt{meal\_plans}, trả về cho frontend.
+\end{enumerate}
+
+\subsection{Thiết kế Prompt Engineering}
+Prompt được thiết kế theo chuẩn \textbf{System + User context}, đảm bảo AI luôn phản hồi theo định dạng JSON có thể parse được:
+
+\begin{verbatim}
+// System prompt (cố định, cached để tối ưu chi phí)
+const SYSTEM_PROMPT = `
+Bạn là chuyên gia dinh dưỡng thể thao.
+Trả về KẾ HOẠCH BỮA ĂN dạng JSON thuần (không markdown):
+{
+  "calories_target": number,
+  "meals": [{ "name": string, "time": string,
+               "foods": [string], "calories": number }],
+  "notes": string
+}
+`;
+
+// User context (động, xây dựng từ database)
+const userContext = `
+Hội viên: ${profile.primaryGoal}, ${profile.activityLevel}
+Cân nặng: ${latestWeight} kg (mục tiêu: ${profile.targetWeightKg} kg)
+Lịch sử 30 ngày: từ ${minWeight} đến ${maxWeight} kg
+`;
+\end{verbatim}
+
+\subsection{Bảng dữ liệu bổ sung}
+Để hỗ trợ tính năng AI, cần thêm 3 bảng vào schema:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Bảng} & \textbf{Mục đích} \\ \hline
+\texttt{nutrition\_profiles}  & Thông tin bổ sung: dị ứng, khẩu phần, ngân sách \\
+\texttt{meal\_plans}          & Kế hoạch được AI tạo ra, trạng thái, metadata mô hình \\
+\texttt{ai\_usage\_logs}      & Ghi nhận model, tokens dùng, chi phí, latency \\
+\hline
+\end{tabular}
+\caption{Bảng dữ liệu bổ sung cho tính năng AI}
+\end{table}
+
+\subsection{Ví dụ tích hợp API thực tế}
+Đoạn code dưới đây minh họa use case \texttt{generate-meal-plan.js} sử dụng Anthropic Claude API:
+
+\begin{verbatim}
+import Anthropic from "@anthropic-ai/sdk";
+
+export async function generateMealPlan({
+  userId, healthProfileRepo, weightLogRepo, aiUsageRepo
+}) {
+  // 1. Thu thập dữ liệu từ database
+  const profile = await healthProfileRepo.findByUserId(userId);
+  const logs = await weightLogRepo.listByUserId(userId, 30);
+
+  // 2. Xây dựng context
+  const latestWeight = logs[0]?.weightKg ?? "chưa có";
+
+  // 3. Gọi AI API
+  const client = new Anthropic();
+  const response = await client.messages.create({
+    model: "claude-opus-4-7",
+    max_tokens: 1024,
+    system: SYSTEM_PROMPT,          // cache với cache_control
+    messages: [{
+      role: "user",
+      content: buildUserContext(profile, latestWeight, logs)
+    }]
+  });
+
+  // 4. Parse và validate output
+  const rawText = response.content[0].text;
+  const plan = JSON.parse(rawText);   // throw nếu AI trả về sai format
+  if (!plan.meals || !Array.isArray(plan.meals))
+    throw new DomainError("AI_INVALID_RESPONSE");
+
+  // 5. Ghi log chi phí
+  await aiUsageRepo.create({
+    userId, model: "claude-opus-4-7",
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+    cacheReadTokens: response.usage.cache_read_input_tokens
+  });
+
+  return plan;
+}
+\end{verbatim}
+
+\subsection{Kiểm soát chi phí bằng Prompt Caching}
+Claude API hỗ trợ \textbf{Prompt Caching}: System prompt được cache 5 phút, các request trong cùng khoảng thời gian chỉ tốn 10\% chi phí so với không cache. Với mô hình Claude claude-opus-4-7:
+\begin{itemize}
+    \item Không cache: $\sim$\$0.015/request (1000 token context, 500 token output).
+    \item Có cache: $\sim$\$0.003/request (cache hit 90\%).
+    \item 1.000 hội viên × 2 lần/tháng = $\sim$\$6/tháng — chi phí có thể chấp nhận được cho business gym.
+\end{itemize}
+
+\subsection{Các nguyên tắc an toàn khi tích hợp AI}
+\begin{itemize}
+    \item \textbf{Không tin tưởng AI output tuyệt đối:} Validate JSON schema bằng Zod trước khi lưu vào database.
+    \item \textbf{Ràng buộc y tế không do AI quyết định:} Dị ứng và chống chỉ định được filter ở tầng ứng dụng, không trong prompt.
+    \item \textbf{API key bảo mật:} Lưu trong biến môi trường server-side, không bao giờ expose ra client.
+    \item \textbf{Rate limiting:} Giới hạn 2 lần tạo kế hoạch/hội viên/ngày bằng Redis hoặc database counter.
+    \item \textbf{Disclaimers:} Kết quả AI hiển thị kèm cảnh báo ``Tham khảo chuyên gia dinh dưỡng trước khi thực hiện''.
+\end{itemize}
+
+\subsection{Lộ trình triển khai}
+Tính năng AI được lên kế hoạch triển khai theo 3 giai đoạn sau khi MVP ổn định:
+\begin{enumerate}
+    \item \textbf{Giai đoạn 1 (2-3 tuần):} Thêm bảng \texttt{nutrition\_profiles} và \texttt{meal\_plans}, xây dựng endpoint \texttt{POST /api/v1/me/meal-plan/generate}, tích hợp Claude API.
+    \item \textbf{Giai đoạn 2 (1-2 tuần):} Thêm giao diện hội viên, lịch sử kế hoạch dinh dưỡng, feedback loop (hội viên đánh giá kế hoạch).
+    \item \textbf{Giai đoạn 3 (2-3 tuần):} Dashboard Manager xem thống kê AI usage, kiểm duyệt kế hoạch nếu cần, tích hợp cảnh báo dị ứng.
+\end{enumerate}
+Kiến trúc hiện tại không cần thay đổi cốt lõi — chỉ cần thêm migration SQL và use case mới.

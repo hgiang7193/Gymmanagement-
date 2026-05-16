@@ -55,11 +55,11 @@ Bản đặc tả này được hợp nhất từ phiên bản 1.0 (~40 UC) thà
 \textbf{Nhóm} & \textbf{Số UC} & \textbf{Danh sách} \\ \hline
 Xác thực & 3 & UC-AUTH-01 Đăng ký · UC-AUTH-02 Đăng nhập/Đăng xuất · UC-AUTH-03 Khôi phục mật khẩu \\ \hline
 Khách hàng & 2 & UC-GUEST-01 Tìm hiểu gói · UC-GUEST-02 Đăng ký + theo dõi trial \\ \hline
-Thành viên & 4 & UC-MEMBER-01 Check-in + sinh trắc · UC-MEMBER-02 Hồ sơ cá nhân · UC-MEMBER-03 Hồ sơ sức khoẻ · UC-MEMBER-04 Đánh giá dịch vụ \\ \hline
+Thành viên & 5 & UC-MEMBER-01 Check-in + sinh trắc · UC-MEMBER-02 Hồ sơ cá nhân · UC-MEMBER-03 Hồ sơ sức khoẻ · UC-MEMBER-04 Đánh giá dịch vụ · UC-MEMBER-05 Tư vấn dinh dưỡng AI \\ \hline
 Huấn luyện viên & 3 & UC-COACH-01 Đăng ký \& Huỷ ca làm việc · UC-COACH-02 Quản lý ca đang dạy · UC-COACH-03 Hỗ trợ check-in lỗi \\ \hline
 Quản lý chi nhánh & 7 & UC-MGR-01 POS · UC-MGR-02 Hủy/hoàn tiền · UC-MGR-03 Catalog gói/KM · UC-MGR-04 Override check-in · UC-MGR-05 Quản lý thiết bị · UC-MGR-06 Kiểm duyệt review · UC-MGR-07 Báo cáo vận hành \\ \hline
 Quản trị viên & 2 & UC-ADMIN-01 Quản lý chi nhánh · UC-ADMIN-02 Quản lý người dùng \& phân quyền \\ \hline
-\multicolumn{2}{|r|}{\textbf{Tổng}} & \textbf{19 use case} \\ \hline
+\multicolumn{2}{|r|}{\textbf{Tổng}} & \textbf{20 use case} \\ \hline
 \end{tabular}
 \caption{Tổng quan 19 use case sau khi gộp}
 \end{table}
@@ -321,6 +321,46 @@ Quản trị viên & 2 & UC-ADMIN-01 Quản lý chi nhánh · UC-ADMIN-02 Quản
 \textbf{Luồng chính} & \textbf{1.} Member chọn loại đánh giá (ca/HLV/thiết bị/bài tập). \textbf{2.} Chọn target từ danh sách lịch sử tương tác. \textbf{3.} Chọn rating 1--5 + comment + tags (optional). \textbf{4.} Hệ thống enforce rate limit theo \texttt{target\_type}: ca = 1 review/shift; HLV = 1 review/coach/ngày; thiết bị = 1 review/asset/tuần; bài tập = không giới hạn. \textbf{5.} Lưu review. \\
 \hline
 \textbf{[NL]} & \textbf{NL-1:} Vượt rate limit $\rightarrow$ \texttt{REVIEW\_RATE\_LIMITED}. \textbf{NL-2:} Không đủ điều kiện tương tác $\rightarrow$ \texttt{REVIEW\_NOT\_ALLOWED}. \textbf{NL-3:} Nội dung vi phạm $\rightarrow$ auto-flag vào hàng đợi kiểm duyệt (UC-MGR-06). \\
+\hline
+\end{longtable}
+\endgroup
+
+%% UC-MEMBER-05
+\subsubsection{UC-MEMBER-05: Tư vấn dinh dưỡng qua AI}
+\begingroup
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{|>{\centering\arraybackslash}m{3cm}|>{\raggedright\arraybackslash}m{12cm}|}
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endfirsthead
+\hline
+\textbf{Danh mục} & \textbf{Mô tả} \\ \hline
+\endhead
+\hline
+\endfoot
+\textbf{Mục đích} & Cung cấp kênh hỏi đáp dinh dưỡng tức thời, cá nhân hoá theo hồ sơ sức khoẻ của member (chiều cao, cân nặng, mục tiêu, mức hoạt động) thông qua mô hình ngôn ngữ lớn (LLM) tích hợp phía backend. \\
+\hline
+\textbf{Tác nhân} & Member đã đăng nhập. \\
+\hline
+\textbf{[ĐK]} & Member đã xác thực (JWT hợp lệ). Dịch vụ AI (Groq API) khả dụng và biến môi trường \texttt{GROQ\_API\_KEY} được cấu hình. \\
+\hline
+\textbf{[KT]} & Member nhận được phản hồi tư vấn dinh dưỡng bằng tiếng Việt, phù hợp với hồ sơ sức khoẻ cá nhân; lịch sử hội thoại được duy trì trong phiên làm việc (client-side). \\
+\hline
+\textbf{Luồng chính} &
+\textbf{1.} Member mở cửa sổ chatbot nổi (floating widget) ở góc phải màn hình trong khu vực hội viên. \newline
+\textbf{2.} Hệ thống hiển thị tin nhắn chào kèm gợi ý nhanh (``Ăn gì trước khi tập?'', ``Protein cho người tập gym?'', v.v.). \newline
+\textbf{3.} Member nhập câu hỏi hoặc chọn chip gợi ý $\rightarrow$ frontend gửi \texttt{POST /api/v1/me/nutrition-chat} kèm \texttt{message} và \texttt{history} (tối đa 12 lượt gần nhất). \newline
+\textbf{4.} Backend lấy hồ sơ sức khoẻ (\texttt{health\_profiles}) và cân nặng mới nhất (\texttt{weight\_logs}) của member, xây dựng \texttt{system prompt} chứa ngữ cảnh cá nhân. \newline
+\textbf{5.} Backend gọi Groq API (mô hình \texttt{llama-3.1-8b-instant}) với danh sách tin nhắn đầy đủ. \newline
+\textbf{6.} Phản hồi của AI được trả về frontend, hiển thị dạng bong bóng hội thoại; indicator ``đang gõ'' (3 chấm nhảy) hiển thị trong khi chờ. \\
+\hline
+\textbf{[NL]} &
+\textbf{NL-1:} \texttt{GROQ\_API\_KEY} chưa cấu hình $\rightarrow$ backend trả lỗi \texttt{AI\_NOT\_CONFIGURED}, frontend hiển thị thông báo lỗi trong bong bóng AI. \newline
+\textbf{NL-2:} Groq API quá tải hoặc timeout $\rightarrow$ backend trả lỗi \texttt{AI\_SERVICE\_UNAVAILABLE}, frontend hiển thị gợi ý thử lại. \newline
+\textbf{NL-3:} Member hỏi ngoài phạm vi dinh dưỡng (y tế, pháp lý...) $\rightarrow$ AI từ chối lịch sự theo ràng buộc trong \texttt{system prompt}; không ghi nhận nội dung vào cơ sở dữ liệu. \\
+\hline
+\textbf{Ghi chú kỹ thuật} &
+Lịch sử hội thoại \textbf{không lưu vào cơ sở dữ liệu} (giữ ở trạng thái React client) — đơn giản hoá schema và tránh rủi ro lưu trữ dữ liệu nhạy cảm. Dịch vụ Groq miễn phí ở mức 14.400 yêu cầu/ngày, đủ cho quy mô phòng gym vừa. \\
 \hline
 \end{longtable}
 \endgroup

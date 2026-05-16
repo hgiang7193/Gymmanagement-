@@ -1,0 +1,122 @@
+Project MYFIT_Big_Picture_Clean {
+  database_type: "PostgreSQL"
+  Note: "Presentation ERD: 13 core tables, only backbone relationships."
+}
+
+Table organizations {
+  id text [pk]
+  name text [not null]
+}
+
+Table branches {
+  id text [pk]
+  organization_id text
+  code text [unique, not null]
+  name text [not null]
+  status text [not null]
+}
+
+Table users {
+  id text [pk]
+  email text [unique, not null]
+  status text [not null]
+}
+
+Table membership_plans {
+  id text [pk]
+  code text [unique, not null]
+  name text [not null]
+  price bigint [not null]
+}
+
+Table subscriptions {
+  id text [pk]
+  user_id text [not null]
+  membership_plan_id text [not null]
+  home_branch_id text [not null]
+  status text [not null]
+  sessions_remaining int [not null]
+}
+
+Table course_packages {
+  id text [pk]
+  code text [unique, not null]
+  name text [not null]
+}
+
+Table course_enrollments {
+  id text [pk]
+  user_id text [not null]
+  course_package_id text [not null]
+  branch_id text [not null]
+  status text [not null]
+  sessions_remaining int [not null]
+}
+
+Table shifts {
+  id text [pk]
+  branch_id text [not null]
+  shift_code text [not null]
+  date date [not null]
+}
+
+Table class_attendance {
+  id text [pk]
+  enrollment_id text [not null]
+  user_id text [not null]
+  shift_id text [not null]
+  status text [not null]
+}
+
+Table invoices {
+  id text [pk]
+  invoice_number text [unique, not null]
+  user_id text [not null]
+  branch_id text [not null]
+  total_amount bigint [not null]
+  status text [not null]
+}
+
+Table invoice_items {
+  id text [pk]
+  invoice_id text [not null]
+  item_type text [not null]
+  item_id text [not null]
+  unit_price bigint [not null]
+  quantity int [not null]
+  subtotal bigint [not null]
+}
+
+Table payments {
+  id text [pk]
+  invoice_id text [not null]
+  amount bigint [not null]
+  status text [not null]
+}
+
+Table trial_bookings {
+  id text [pk]
+  guest_user_id text
+  branch_id text [not null]
+  status text [not null]
+  converted_subscription_id text
+}
+
+Ref: branches.organization_id > organizations.id
+Ref: subscriptions.user_id > users.id
+Ref: subscriptions.membership_plan_id > membership_plans.id
+Ref: subscriptions.home_branch_id > branches.id
+Ref: course_enrollments.user_id > users.id
+Ref: course_enrollments.course_package_id > course_packages.id
+Ref: course_enrollments.branch_id > branches.id
+Ref: shifts.branch_id > branches.id
+Ref: class_attendance.enrollment_id > course_enrollments.id
+Ref: class_attendance.user_id > users.id
+Ref: class_attendance.shift_id > shifts.id
+Ref: invoices.user_id > users.id
+Ref: invoices.branch_id > branches.id
+Ref: invoice_items.invoice_id > invoices.id
+Ref: payments.invoice_id > invoices.id
+Ref: trial_bookings.guest_user_id > users.id
+Ref: trial_bookings.branch_id > branches.id
+Ref: trial_bookings.converted_subscription_id > subscriptions.id

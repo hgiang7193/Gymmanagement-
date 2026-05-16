@@ -37,9 +37,25 @@ class PostgresClassAttendanceRepository extends SqlRepository {
 
   async findByUser(userId, limit = 50) {
     return this.manyMapped(
-      `SELECT ca.*, s.shift_code, s.date, s.start_at, s.end_at
+      `SELECT ca.*,
+              s.shift_code, s.date, s.start_at, s.end_at,
+              br.name AS branch_name,
+              br.code AS branch_code,
+              wl.checkin_weight_kg,
+              wl.checkin_weight_source
        FROM class_attendance ca
        JOIN shifts s ON ca.shift_id = s.id
+       JOIN branches br ON s.branch_id = br.id
+       LEFT JOIN LATERAL (
+         SELECT mwl.weight_kg AS checkin_weight_kg,
+                mwl.measurement_source AS checkin_weight_source
+           FROM member_weight_logs mwl
+          WHERE mwl.user_id = ca.user_id
+            AND mwl.measured_at BETWEEN ca.check_in_time - interval '30 seconds'
+                                    AND ca.check_in_time + interval '30 seconds'
+          ORDER BY ABS(EXTRACT(EPOCH FROM (mwl.measured_at - ca.check_in_time)))
+          LIMIT 1
+       ) wl ON true
        WHERE ca.user_id = $1
        ORDER BY ca.attended_at DESC
        LIMIT $2`,

@@ -1,0 +1,89 @@
+Project MYFIT_08_BILLING {
+  database_type: "PostgreSQL"
+  Note: "Domain 08 — Thanh toán và hóa đơn: promotions, invoices, invoice_items, payments, refunds."
+}
+
+Table promotions {
+  id text [pk]
+  code text [unique, not null]
+  name text [not null]
+  type text [not null]
+  value bigint [not null]
+  scope text [not null]
+  branch_id text
+  is_active boolean [not null]
+  created_by text [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table invoices {
+  id text [pk]
+  invoice_number text [unique, not null]
+  user_id text [not null]
+  branch_id text [not null]
+  total_amount bigint [not null]
+  discount_amount bigint [not null]
+  promotion_id text
+  status text [not null]
+  due_date timestamptz [not null]
+  cancelled_by text
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table invoice_items {
+  id text [pk]
+  invoice_id text [not null]
+  item_type text [not null]
+  item_id text [not null]
+  description text [not null]
+  unit_price bigint [not null]
+  quantity int [not null]
+  subtotal bigint [not null]
+  created_at timestamptz [not null]
+}
+
+Table payments {
+  id text [pk]
+  invoice_id text [not null]
+  amount bigint [not null]
+  payment_method text [not null]
+  status text [not null]
+  processed_at timestamptz [not null]
+  created_by text [not null]
+}
+
+Table refunds {
+  id text [pk]
+  invoice_id text [not null]
+  amount bigint [not null]
+  status text [not null]
+  processed_by text [not null]
+  processed_at timestamptz [not null]
+  created_at timestamptz [not null]
+}
+
+// ── External stubs ────────────────────────────────────────────
+Table users [note: "external · domain 01"] {
+  id text [pk]
+}
+
+Table branches [note: "external · domain 02"] {
+  id text [pk]
+}
+
+// ── Internal relationships ────────────────────────────────────
+Ref: invoices.promotion_id > promotions.id
+Ref: invoice_items.invoice_id > invoices.id
+Ref: payments.invoice_id > invoices.id
+Ref: refunds.invoice_id > invoices.id
+
+// ── Cross-domain relationships ────────────────────────────────
+Ref: invoices.branch_id > branches.id
+Ref: invoices.cancelled_by > users.id
+Ref: invoices.user_id > users.id
+Ref: payments.created_by > users.id
+Ref: promotions.branch_id > branches.id
+Ref: promotions.created_by > users.id
+Ref: refunds.processed_by > users.id

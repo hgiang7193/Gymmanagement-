@@ -1,0 +1,160 @@
+@startuml SD-POS-FLOW
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #F8F9FA
+skinparam defaultFontSize 11
+skinparam ParticipantFontStyle bold
+
+title UC-POS-01/02/03: Tạo Hóa Đơn → Thanh Toán → Kích Hoạt Gói\n(Sequence Diagram)
+
+actor Manager as mgr
+participant "Frontend\n(Billing UI)" as frontend
+participant "Invoice\nController" as controller
+participant "CreateInvoice\nUseCase" as createSvc
+participant "RecordPayment\nUseCase" as paymentSvc
+participant "InvoiceRepository" as invoiceRepo
+participant "BranchManager\nAssignmentRepo" as bmRepo
+database "PostgreSQL\n(Transaction)" as db
+participant "AuditLog\nRepository" as audit
+
+== Bước 1: Tạo Hóa Đơn ==
+mgr -> frontend: Chọn khách hàng,\ngói dịch vụ, nhập giá
+activate frontend
+
+frontend -> controller: POST /api/billing/invoices\n{ userId, branchId, items[],\n  totalAmount, dueDate }
+activate controller
+
+note left of controller
+  JWT Middleware: actorRole = MANAGER,\n actorUserId = manager's ID
+end note
+
+controller -> createSvc: execute({ userId, branchId,\n items, totalAmount,\n actorRole, actorUserId })
+activate createSvc
+
+createSvc -> db: SELECT * FROM users WHERE id=$1
+db --> createSvc: user record
+
+createSvc -> db: SELECT * FROM branches WHERE id=$1
+db --> createSvc: branch record
+
+note right of createSvc
+  UC-POS-01: Branch Scope
+end note
+createSvc -> bmRepo: isManagerOfBranch(\n  actorUserId, branchId)
+activate bmRepo
+bmRepo -> db: SELECT id FROM branch_manager_assignments\nWHERE branch_id=$1\nAND manager_user_id=$2\nAND active_to IS NULL
+db --> bmRepo: assignment found (or not)
+bmRepo --> createSvc: true / false
+deactivate bmRepo
+
+alt Manager không thuộc chi nhánh này
+  createSvc --> controller: Error: CROSS_BRANCH_ACCESS
+  controller --> frontend: 403 Forbidden
+  frontend --> mgr: "Bạn không có quyền\ntạo hóa đơn cho chi nhánh này"
+end
+
+createSvc -> db: INSERT INTO invoices\n(id, invoice_number, user_id, branch_id,\n total_amount, status='pending',\n due_date, created_at)
+db --> createSvc: invoice created
+
+createSvc -> db: INSERT INTO invoice_line_items\n(id, invoice_id, item_type, item_id,\n item_name, unit_price, quantity, subtotal)\nVALUES ... (1 row per item)
+db --> createSvc: line items created
+
+createSvc --> controller: invoice { id, invoiceNumber,\n totalAmount, status, items[] }
+deactivate createSvc
+
+controller --> frontend: 201 Created + invoice
+frontend --> mgr: Hiển thị hóa đơn nháp\nvới tổng tiền và danh sách gói
+deactivate controller
+
+== Bước 2: Ghi Nhận Thanh Toán ==
+mgr -> frontend: Chọn phương thức (cash/transfer/pos)\nvà xác nhận thanh toán
+
+frontend -> controller: POST /api/billing/invoices/{id}/payments\n{ invoiceId, amount, paymentMethod }
+activate controller
+
+controller -> paymentSvc: execute({ invoiceId, amount,\n paymentMethod, actorUserId,\n actorRole })
+activate paymentSvc
+
+paymentSvc -> invoiceRepo: findById(invoiceId)
+activate invoiceRepo
+invoiceRepo -> db: SELECT * FROM invoices WHERE id=$1
+db --> invoiceRepo: invoice record
+invoiceRepo --> paymentSvc: invoice { totalAmount,\n discountAmount, status }
+deactivate invoiceRepo
+
+alt Invoice đã hủy hoặc đã thanh toán
+  paymentSvc --> controller: Error: INVOICE_ALREADY_CANCELLED\n           hoặc INVOICE_ALREADY_PAID
+  controller --> frontend: 409 Conflict
+end
+
+paymentSvc -> bmRepo: isManagerOfBranch(\n  actorUserId, invoice.branchId)
+bmRepo -> db: SELECT id FROM branch_manager_assignments\nWHERE branch_id=$1 AND manager_user_id=$2
+db --> bmRepo: found
+bmRepo --> paymentSvc: true
+
+paymentSvc -> db: SELECT SUM(amount) FROM payments\nWHERE invoice_id=$1 AND status='success'
+db --> paymentSvc: paidSoFar
+
+paymentSvc -> paymentSvc: newTotalPaid = paidSoFar + amount\nwillBePaid = (newTotalPaid >= invoiceTotal)\nnewStatus = willBePaid ? 'paid' : 'partial'
+
+alt Thanh toán vượt quá tổng hóa đơn
+  paymentSvc --> controller: Error: PAYMENT_EXCEEDS_INVOICE
+  controller --> frontend: 400 Bad Request
+end
+
+== Bước 3: Giao dịch nguyên tử ==
+paymentSvc -> db: BEGIN
+activate db
+
+paymentSvc -> db: INSERT INTO payments\n(id, invoice_id, amount,\n payment_method, status='success',\n processed_at, created_by)
+db --> paymentSvc: payment record
+
+paymentSvc -> db: UPDATE invoices\nSET status=$1, updated_at=$2\nWHERE id=$3\n-- ('paid' hoặc 'partial')
+db --> paymentSvc: updated
+
+== Bước 4: Kích hoạt gói (chỉ khi paid) ==
+opt willBePaid = true
+  paymentSvc -> db: SELECT * FROM invoice_line_items\nWHERE invoice_id=$1
+  db --> paymentSvc: line items []
+
+  loop Mỗi line item
+    alt item_type = 'membership'
+      paymentSvc -> db: SELECT * FROM membership_plans\nWHERE id=$1
+      db --> paymentSvc: plan { duration_days, total_sessions }
+
+      paymentSvc -> db: INSERT INTO subscriptions\n(id, user_id, membership_plan_id,\n home_branch_id, status='ACTIVE',\n started_at, expires_at,\n total_sessions, sessions_remaining,\n activated_by, activated_at)
+      db --> paymentSvc: subscription created
+
+      paymentSvc -> db: INSERT INTO user_role_assignments\n(id, user_id, role_id='MEMBER',\n branch_id, assigned_at)\n-- nếu chưa có
+      db --> paymentSvc: role assigned
+
+      paymentSvc -> db: INSERT INTO subscription_status_history\n(id, subscription_id, to_status='ACTIVE',\n changed_by, reason='payment_received')
+      db --> paymentSvc: history recorded
+
+    else item_type = 'course'
+      paymentSvc -> db: SELECT * FROM course_packages\nWHERE id=$1
+      db --> paymentSvc: package { total_sessions }
+
+      paymentSvc -> db: INSERT INTO course_enrollments\n(id, user_id, course_package_id,\n branch_id, status='ACTIVE',\n total_sessions, sessions_remaining,\n created_by)
+      db --> paymentSvc: enrollment created
+    end
+
+    paymentSvc -> db: INSERT INTO audit_logs\n(actor_user_id, action_code,\n entity_type, entity_id,\n branch_id, metadata_json)
+    db --> paymentSvc: audit logged
+  end
+end
+
+paymentSvc -> db: INSERT INTO audit_logs\n-- action_code='invoice_paid'
+paymentSvc -> db: COMMIT
+deactivate db
+
+paymentSvc --> controller: {\n  id, invoiceId, amount,\n  invoiceStatus: 'paid'/'partial',\n  paidSoFar, invoiceTotal,\n  activations: [{ type, subscriptionId }]\n}
+deactivate paymentSvc
+
+controller --> frontend: 201 Created + payment result
+deactivate controller
+
+frontend --> mgr: ✅ Thanh toán thành công!\n📦 Gói: [TÊN GÓI] đã kích hoạt\n💰 Đã trả: X VND\n📅 Hạn dùng: DD/MM/YYYY\n\n[In hóa đơn] [Đóng]
+deactivate frontend
+
+@enduml

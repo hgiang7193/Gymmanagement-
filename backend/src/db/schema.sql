@@ -459,3 +459,260 @@ create table if not exists ai_meal_generation_logs (
 
 create index if not exists idx_ai_meal_generation_logs_user_date
   on ai_meal_generation_logs (user_id, request_date desc);
+
+-- ==========================================
+-- GYM OPERATIONS: SHIFTS & ATTENDANCE
+-- ==========================================
+
+create table if not exists shifts (
+  id text primary key,
+  branch_id text not null references branches(id),
+  shift_code text not null,
+  date date not null,
+  start_at timestamptz not null,
+  end_at timestamptz not null,
+  coach_capacity integer not null default 2,
+  created_at timestamptz not null,
+  updated_at timestamptz not null,
+  constraint uq_shifts_branch_date_code unique (branch_id, date, shift_code)
+);
+
+create index if not exists idx_shifts_branch_date on shifts (branch_id, date asc);
+
+create table if not exists trainer_assignments (
+  id text primary key,
+  trainer_user_id text not null references users(id),
+  shift_id text not null references shifts(id),
+  branch_id text not null references branches(id),
+  note text null,
+  assigned_by text null references users(id),
+  assigned_at timestamptz not null,
+  unassigned_at timestamptz null,
+  created_at timestamptz not null,
+  updated_at timestamptz not null
+);
+
+create table if not exists course_packages (
+  id text primary key,
+  code text unique not null,
+  name text not null,
+  price bigint not null,
+  total_sessions integer not null,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists course_enrollments (
+  id text primary key,
+  user_id text not null references users(id),
+  course_package_id text not null references course_packages(id),
+  branch_id text not null references branches(id),
+  status text not null,
+  enrolled_at timestamptz not null,
+  started_at timestamptz null,
+  total_sessions integer not null,
+  sessions_attended integer not null default 0,
+  sessions_remaining integer not null,
+  completed_at timestamptz null,
+  created_by text not null references users(id),
+  created_at timestamptz not null,
+  updated_at timestamptz null
+);
+
+create table if not exists class_attendance (
+  id text primary key,
+  enrollment_id text null references course_enrollments(id),
+  user_id text not null references users(id),
+  shift_id text null references shifts(id),
+  branch_id text not null references branches(id),
+  attended_at timestamptz null,
+  check_in_time timestamptz not null,
+  status text not null,
+  created_by text null references users(id),
+  created_at timestamptz not null,
+  proxy_checkin boolean not null default false,
+  override_reason text null,
+  override_actor text null references users(id)
+);
+
+create index if not exists idx_class_attendance_user on class_attendance (user_id, check_in_time desc);
+create index if not exists idx_class_attendance_shift on class_attendance (shift_id);
+
+-- ==========================================
+-- SUPPORT & MEMBER REQUESTS
+-- ==========================================
+
+create table if not exists support_requests (
+  id text primary key,
+  member_id text not null references users(id),
+  shift_id text null references shifts(id),
+  branch_id text not null references branches(id),
+  reason text not null,
+  status text not null default 'OPEN',
+  created_at timestamptz not null
+);
+
+-- ==========================================
+-- BILLING: INVOICE LINE ITEMS & REFUNDS
+-- ==========================================
+
+create table if not exists invoice_line_items (
+  id text primary key,
+  invoice_id text not null references invoices(id),
+  item_type text not null,
+  item_id text null,
+  item_name text not null,
+  unit_price bigint not null,
+  quantity integer not null default 1,
+  subtotal bigint not null,
+  created_at timestamptz not null
+);
+
+create index if not exists idx_invoice_line_items_invoice on invoice_line_items (invoice_id);
+
+create table if not exists refunds (
+  id text primary key,
+  invoice_id text not null references invoices(id),
+  amount bigint not null,
+  reason text null,
+  status text not null,
+  processed_by text not null references users(id),
+  processed_at timestamptz not null,
+  created_at timestamptz not null
+);
+
+-- ==========================================
+-- PROMOTIONS
+-- ==========================================
+
+create table if not exists promotions (
+  id text primary key,
+  code text unique not null,
+  name text not null,
+  type text not null,
+  value numeric(10, 2) not null,
+  starts_at timestamptz not null,
+  ends_at timestamptz not null,
+  min_order_amount bigint not null default 0,
+  max_uses integer null,
+  uses_count integer not null default 0,
+  stackable boolean not null default false,
+  scope text not null default 'branch',
+  branch_id text null references branches(id),
+  is_active boolean not null default false,
+  created_by text not null references users(id),
+  created_at timestamptz not null,
+  updated_at timestamptz not null
+);
+
+-- ==========================================
+-- REVIEWS & MODERATION
+-- ==========================================
+
+create table if not exists reviews (
+  id text primary key,
+  reviewer_id text not null references users(id),
+  target_type text not null,
+  target_id text not null,
+  rating integer not null check (rating between 1 and 5),
+  comment text null,
+  tags jsonb not null default '[]'::jsonb,
+  status text not null default 'visible',
+  branch_id text null references branches(id),
+  attendance_id text null,
+  created_at timestamptz not null,
+  updated_at timestamptz not null
+);
+
+create index if not exists idx_reviews_target on reviews (target_type, target_id);
+create index if not exists idx_reviews_branch on reviews (branch_id, created_at desc);
+
+create table if not exists review_moderation_logs (
+  id text primary key,
+  review_id text not null references reviews(id),
+  actor_id text not null references users(id),
+  from_status text null,
+  to_status text not null,
+  reason text null,
+  created_at timestamptz not null
+);
+
+-- ==========================================
+-- FACILITY MANAGEMENT
+-- ==========================================
+
+create table if not exists areas (
+  id text primary key,
+  branch_id text not null references branches(id),
+  name text not null,
+  description text null,
+  is_active boolean not null default true,
+  created_by text not null references users(id),
+  created_at timestamptz not null,
+  updated_at timestamptz not null
+);
+
+create table if not exists assets (
+  id text primary key,
+  branch_id text not null references branches(id),
+  area_id text null references areas(id),
+  asset_code text not null,
+  name text not null,
+  asset_type text not null,
+  purchase_date date null,
+  purchase_price bigint null,
+  status text not null default 'ACTIVE',
+  notes text null,
+  created_by text not null references users(id),
+  created_at timestamptz not null,
+  updated_at timestamptz not null
+);
+
+create table if not exists maintenance_tickets (
+  id text primary key,
+  asset_id text not null references assets(id),
+  branch_id text not null references branches(id),
+  title text not null,
+  description text null,
+  status text not null default 'OPEN',
+  reported_by text not null references users(id),
+  assigned_to text null references users(id),
+  resolved_at timestamptz null,
+  created_at timestamptz not null,
+  updated_at timestamptz not null
+);
+
+create table if not exists maintenance_schedules (
+  id text primary key,
+  branch_id text not null references branches(id),
+  asset_id text null references assets(id),
+  title text not null,
+  description text null,
+  frequency text not null,
+  interval_days integer not null,
+  next_due_at timestamptz not null,
+  last_run_at timestamptz null,
+  is_active boolean not null default true,
+  created_by text not null references users(id),
+  created_at timestamptz not null,
+  updated_at timestamptz not null
+);
+
+create table if not exists maintenance_schedule_runs (
+  id text primary key,
+  schedule_id text not null references maintenance_schedules(id),
+  ticket_id text null references maintenance_tickets(id),
+  triggered_at timestamptz not null,
+  triggered_by text null references users(id)
+);
+
+-- ==========================================
+-- SYSTEM CONFIGURATION
+-- ==========================================
+
+create table if not exists system_config (
+  key text primary key,
+  value text not null,
+  updated_by text null references users(id),
+  updated_at timestamptz not null
+);

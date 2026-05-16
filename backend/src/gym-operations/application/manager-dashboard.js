@@ -1,4 +1,17 @@
 // UC-MGR-01: Manager daily operations dashboard
+function toDateInHoChiMinh(date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+  return `${year}-${month}-${day}`;
+}
+
 class ManagerDashboardUseCase {
   constructor({ shiftRepository, classAttendanceRepository, invoiceRepository, trialBookingRepository, branchManagerAssignmentRepository, clock }) {
     this.shiftRepository = shiftRepository;
@@ -13,7 +26,7 @@ class ManagerDashboardUseCase {
     if (!managerUserId || !branchId) throw new Error('VALIDATION_ERROR');
 
     const now = this.clock.now();
-    const targetDate = date || now.toISOString().slice(0, 10);
+    const targetDate = date || toDateInHoChiMinh(now);
 
     const [shifts, totalCheckins, trialBookings, invoices] = await Promise.all([
       this.shiftRepository.findByBranchAndDate(branchId, targetDate),
@@ -36,7 +49,7 @@ class ManagerDashboardUseCase {
     );
 
     const paidInvoices = (invoices || []).filter(i => i.status === 'paid');
-    const totalRevenue = paidInvoices.reduce((sum, i) => sum + (i.totalAmount || 0), 0);
+    const totalRevenue = paidInvoices.reduce((sum, i) => sum + Number(i.totalAmount || 0), 0);
 
     return {
       date: targetDate,

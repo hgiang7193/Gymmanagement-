@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { useMutation } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { GraduationCap, Loader2 } from "lucide-react";
 
 type EnrollInput = {
   memberId: string;
@@ -24,13 +26,13 @@ export function ManagerCourseEnrollmentsPanel() {
       });
     },
     onSuccess: () => {
-      alert("Ghi danh khoa hoc thanh cong!");
+      toast.success("Ghi danh khoá học thành công!");
       setMemberId("");
       setCoursePackageId("");
     },
     onError: (err: Error) => {
-      alert("Loi ghi danh: " + err.message);
-    }
+      toast.error("Lỗi ghi danh: " + err.message);
+    },
   });
 
   const handleEnroll = (e: React.FormEvent) => {
@@ -40,20 +42,58 @@ export function ManagerCourseEnrollmentsPanel() {
 
   return (
     <div className="space-y-6 mt-6">
-      <SurfaceCard title="Enroll in Course" description="Dang ky course package cho hoi vien">
+      {/* Gradient banner */}
+      <div className="bg-gradient-to-r from-violet-600 to-purple-500 h-20 rounded-3xl flex items-center gap-4 px-6">
+        <div className="flex items-center justify-center w-10 h-10 rounded-2xl bg-white/20">
+          <GraduationCap className="w-5 h-5 text-white" />
+        </div>
+        <h1 className="text-white text-xl font-bold tracking-tight">Ghi danh khoá học</h1>
+      </div>
+
+      {/* Form card */}
+      <SurfaceCard title="Ghi danh khoá học" description="Đăng ký gói khoá học cho hội viên">
         <form onSubmit={handleEnroll} className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Member ID</label>
-              <input type="text" required value={memberId} onChange={(e) => setMemberId(e.target.value)} className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border" />
+              <label className="block text-sm font-semibold text-[var(--black)] mb-1">
+                Mã hội viên
+              </label>
+              <input
+                type="text"
+                required
+                value={memberId}
+                onChange={(e) => setMemberId(e.target.value)}
+                className="myfit-input w-full"
+                placeholder="Nhập mã hội viên"
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Course Package ID</label>
-              <input type="text" required value={coursePackageId} onChange={(e) => setCoursePackageId(e.target.value)} className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border" />
+              <label className="block text-sm font-semibold text-[var(--black)] mb-1">
+                Mã gói khoá học
+              </label>
+              <input
+                type="text"
+                required
+                value={coursePackageId}
+                onChange={(e) => setCoursePackageId(e.target.value)}
+                className="myfit-input w-full"
+                placeholder="Nhập mã gói khoá học"
+              />
             </div>
           </div>
-          <button type="submit" disabled={enrollMutation.isPending} className="inline-flex justify-center rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50">
-            {enrollMutation.isPending ? "Dang xu ly..." : "Enroll Member"}
+          <button
+            type="submit"
+            disabled={enrollMutation.isPending}
+            className="bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold rounded-2xl h-12 px-6 flex items-center gap-2 transition-transform hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+          >
+            {enrollMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Đang xử lý...
+              </>
+            ) : (
+              "Ghi danh"
+            )}
           </button>
         </form>
       </SurfaceCard>

@@ -350,19 +350,18 @@ function CreateTicketForm({ branchId, onSuccess }: { branchId: string; onSuccess
 }
 
 export function ManagerFacilityPanel() {
-  const { session } = useAuth();
+  const { session, authorizedRequest } = useAuth();
   const queryClient = useQueryClient();
-  const branchId = session?.branchIds?.[0] ?? "";
+  const isAdmin = session?.role === "ADMIN";
+  const sessionBranchId = session?.branchIds?.[0] ?? "";
+  const [adminBranchId, setAdminBranchId] = useState("");
 
-  if (!branchId) {
-    return (
-      <AppShell role="MANAGER" title="Cơ sở vật chất" description="Quản lý thiết bị và bảo trì chi nhánh.">
-        <SurfaceCard title="Chưa có chi nhánh">
-          <p className="text-sm text-slate-600">Tài khoản chưa được gán chi nhánh. Liên hệ Admin để được hỗ trợ.</p>
-        </SurfaceCard>
-      </AppShell>
-    );
-  }
+  const branchesQuery = useQuery({
+    queryKey: ["facility-branches"],
+    queryFn: async () => (await authorizedRequest<{ id: string; name: string; code: string }[]>("/api/v1/branches")).data ?? [],
+  });
+
+  const branchId = isAdmin ? adminBranchId : sessionBranchId;
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ["manager-assets"] });
@@ -373,11 +372,33 @@ export function ManagerFacilityPanel() {
   return (
     <AppShell role="MANAGER" title="Cơ sở vật chất" description="Quản lý thiết bị, khu vực và phiếu bảo trì.">
       <ScreenIntro eyebrow="Manager" title="Cơ sở vật chất" body="Theo dõi trạng thái thiết bị, tạo phiếu sự cố và xử lý bảo trì." />
-      <FacilityOverview branchId={branchId} />
-      <AssetsList branchId={branchId} />
-      <AddAssetForm branchId={branchId} onSuccess={invalidateAll} />
-      <TicketsList branchId={branchId} />
-      <CreateTicketForm branchId={branchId} onSuccess={invalidateAll} />
+      {isAdmin && (
+        <SurfaceCard title="Chọn chi nhánh" description="Quản trị viên chọn chi nhánh để xem cơ sở vật chất.">
+          <select
+            value={adminBranchId}
+            onChange={(e) => setAdminBranchId(e.target.value)}
+            className="rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white"
+          >
+            <option value="">— Chọn chi nhánh —</option>
+            {(branchesQuery.data ?? []).map((b) => (
+              <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
+            ))}
+          </select>
+        </SurfaceCard>
+      )}
+      {!branchId ? (
+        <SurfaceCard title="Chưa có chi nhánh">
+          <p className="text-sm text-slate-600">{isAdmin ? "Hãy chọn chi nhánh ở trên để xem dữ liệu." : "Tài khoản chưa được gán chi nhánh. Liên hệ Admin để được hỗ trợ."}</p>
+        </SurfaceCard>
+      ) : (
+        <>
+          <FacilityOverview branchId={branchId} />
+          <AssetsList branchId={branchId} />
+          <AddAssetForm branchId={branchId} onSuccess={invalidateAll} />
+          <TicketsList branchId={branchId} />
+          <CreateTicketForm branchId={branchId} onSuccess={invalidateAll} />
+        </>
+      )}
     </AppShell>
   );
 }

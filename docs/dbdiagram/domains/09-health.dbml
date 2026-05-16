@@ -1,0 +1,52 @@
+Project MYFIT_09_HEALTH {
+  database_type: "PostgreSQL"
+  Note: "Domain 09 — Suc khoe va chi so co the: health profiles, weight logs, body measurements."
+}
+
+Table member_health_profiles {
+  id text [pk]
+  user_id text [not null]
+  primary_goal text
+  activity_level text
+  target_weight_kg numeric
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table member_weight_logs {
+  id text [pk]
+  user_id text [not null]
+  weight_kg numeric [not null]
+  measured_at timestamptz [not null]
+  created_by text [not null]
+  created_at timestamptz [not null]
+}
+
+Table member_body_measurements {
+  id text [pk]
+  user_id text [not null]
+  shift_id text
+  measurement_type text [not null]
+  value numeric [not null]
+  measured_at timestamptz [not null]
+  created_by text [not null]
+  is_locked boolean [not null]
+  created_at timestamptz [not null]
+}
+
+// ── External stubs ────────────────────────────────────────────
+Table users [note: "external · domain 01"] {
+  id text [pk]
+}
+
+Table shifts [note: "external · domain 05"] {
+  id text [pk]
+}
+
+// ── Cross-domain relationships ────────────────────────────────
+Ref: member_health_profiles.user_id > users.id
+Ref: member_weight_logs.created_by > users.id
+Ref: member_weight_logs.user_id > users.id
+Ref: member_body_measurements.created_by > users.id
+Ref: member_body_measurements.shift_id > shifts.id
+Ref: member_body_measurements.user_id > users.id

@@ -36,18 +36,35 @@ function RoleBadge({ role }: { role: string }) {
 export function ManagerStaffPanel() {
   const { authorizedRequest, session } = useAuth();
   const queryClient = useQueryClient();
-  const branchId = session?.branchIds?.[0] ?? "";
+  const isAdmin = session?.role === "ADMIN";
+  const sessionBranchId = session?.branchIds?.[0] ?? "";
+  const [adminBranchId, setAdminBranchId] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
 
+  const branchesQuery = useQuery({
+    queryKey: ["staff-branches"],
+    queryFn: async () => (await authorizedRequest<{ id: string; name: string; code: string }[]>("/api/v1/branches")).data ?? [],
+  });
+
+  const branchId = isAdmin ? adminBranchId : sessionBranchId;
+
   const query = useQuery({
-    queryKey: ["manager-staff", branchId, roleFilter],
+    queryKey: ["manager-staff", branchId, roleFilter, isAdmin],
     queryFn: async () => {
+      // Nếu là ADMIN và đã chọn chi nhánh: lọc theo chi nhánh đó.
+      // Nếu là ADMIN không chọn: lấy tất cả qua /admin/staff.
+      // Nếu là MANAGER: lọc theo chi nhánh của họ.
+      if (isAdmin && !branchId) {
+        const res = await authorizedRequest<StaffMember[]>("/api/v1/admin/staff");
+        const all = res.data ?? [];
+        return roleFilter ? all.filter((s: StaffMember) => (s.staffRole ?? "").toUpperCase() === roleFilter) : all;
+      }
       const params = new URLSearchParams({ branch_id: branchId });
       if (roleFilter) params.set("role", roleFilter);
       const res = await authorizedRequest<StaffMember[]>(`/api/v1/manager/staff?${params}`);
       return res.data ?? [];
     },
-    enabled: !!branchId,
+    enabled: isAdmin || !!branchId,
   });
 
   const toggleMutation = useMutation({
@@ -68,7 +85,7 @@ export function ManagerStaffPanel() {
   const active = staff.filter(s => s.isActive);
   const inactive = staff.filter(s => !s.isActive);
 
-  if (!branchId) {
+  if (!isAdmin && !branchId) {
     return (
       <AppShell role="MANAGER" title="Nhân sự" description="Quản lý coach và nhân viên chi nhánh.">
         <SurfaceCard title="Chưa có chi nhánh">
@@ -79,8 +96,26 @@ export function ManagerStaffPanel() {
   }
 
   return (
-    <AppShell role="MANAGER" title="Nhân sự" description="Quản lý coach và nhân viên chi nhánh.">
-      <ScreenIntro eyebrow="Manager" title="Danh sách nhân sự" body="UC-MGR-STAFF-01/02: Xem và quản lý trạng thái nhân viên thuộc chi nhánh." />
+    <AppShell role="MANAGER" title="Nhân sự" description={isAdmin ? "Danh sách toàn bộ nhân sự, có thể lọc theo chi nhánh." : "Quản lý coach và nhân viên chi nhánh."}>
+      <ScreenIntro eyebrow={isAdmin ? "Admin" : "Manager"} title="Danh sách nhân sự" body="Xem và quản lý trạng thái huấn luyện viên / nhân viên." />
+
+      {isAdmin && (
+        <div className="mb-3">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            Chi nhánh:
+            <select
+              value={adminBranchId}
+              onChange={(e) => setAdminBranchId(e.target.value)}
+              className="rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white"
+            >
+              <option value="">Tất cả chi nhánh</option>
+              {(branchesQuery.data ?? []).map((b) => (
+                <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2 mb-2">
         {["", "COACH", "RECEPTIONIST", "MANAGER"].map(r => (
